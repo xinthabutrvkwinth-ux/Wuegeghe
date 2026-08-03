@@ -1,0 +1,260 @@
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local player = Players.LocalPlayer
+
+-- ลบ UI เก่าถ้ามีเพื่อป้องกันการซ้อนทับ
+local guiName = "ModernMenuUI_V2"
+if player:WaitForChild("PlayerGui"):FindFirstChild(guiName) then
+	player.PlayerGui[guiName]:Destroy()
+end
+
+-- ==========================================
+-- 1. สร้างส่วนประกอบหลัก (Main Structure)
+-- ==========================================
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = guiName
+screenGui.ResetOnSpawn = false
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 480, 0, 300)
+mainFrame.Position = UDim2.new(0.5, -240, 0.5, -150)
+mainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = true -- ทำให้ลากหน้าต่างได้
+mainFrame.Parent = screenGui
+Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 6)
+
+-- ==========================================
+-- 2. แถบด้านบน (Top Bar)
+-- ==========================================
+local topBar = Instance.new("Frame")
+topBar.Size = UDim2.new(1, 0, 0, 35)
+topBar.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+topBar.BorderSizePixel = 0
+topBar.Parent = mainFrame
+Instance.new("UICorner", topBar).CornerRadius = UDim.new(0, 6)
+
+-- ปิดมุมโค้งด้านล่างของ TopBar
+local topCover = Instance.new("Frame")
+topCover.Size = UDim2.new(1, 0, 0, 10)
+topCover.Position = UDim2.new(0, 0, 1, -10)
+topCover.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+topCover.BorderSizePixel = 0
+topCover.Parent = topBar
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, -50, 1, 0)
+title.Position = UDim2.new(0, 15, 0, 0)
+title.BackgroundTransparency = 1
+title.Text = "Hitbox Expander"
+title.TextColor3 = Color3.fromRGB(220, 220, 220)
+title.Font = Enum.Font.GothamMedium
+title.TextSize = 14
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.Parent = topBar
+
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.new(0, 35, 0, 35)
+closeBtn.Position = UDim2.new(1, -35, 0, 0)
+closeBtn.BackgroundTransparency = 1
+closeBtn.Text = "✕"
+closeBtn.TextColor3 = Color3.fromRGB(150, 150, 150)
+closeBtn.Font = Enum.Font.Gotham
+closeBtn.TextSize = 16
+closeBtn.Parent = topBar
+
+closeBtn.MouseButton1Click:Connect(function()
+	screenGui:Destroy()
+end)
+
+-- ==========================================
+-- 3. แถบเมนูด้านซ้าย (Sidebar) & พื้นที่เนื้อหา (Content)
+-- ==========================================
+local sidebar = Instance.new("Frame")
+sidebar.Size = UDim2.new(0, 130, 1, -35)
+sidebar.Position = UDim2.new(0, 0, 0, 35)
+sidebar.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+sidebar.BorderSizePixel = 0
+sidebar.Parent = mainFrame
+Instance.new("UICorner", sidebar).CornerRadius = UDim.new(0, 6)
+
+local sidebarLayout = Instance.new("UIListLayout")
+sidebarLayout.SortOrder = Enum.SortOrder.LayoutOrder
+sidebarLayout.Parent = sidebar
+
+local contentArea = Instance.new("Frame")
+contentArea.Size = UDim2.new(1, -130, 1, -35)
+contentArea.Position = UDim2.new(0, 130, 0, 35)
+contentArea.BackgroundTransparency = 1
+contentArea.Parent = mainFrame
+
+-- ==========================================
+-- 4. ระบบจัดการ Tabs
+-- ==========================================
+local tabs = {}
+local activeTab = nil
+
+local function createTab(name, icon, isDefault)
+	-- สร้างปุ่มเมนู
+	local btn = Instance.new("TextButton")
+	btn.Size = UDim2.new(1, 0, 0, 40)
+	btn.BackgroundTransparency = 1
+	btn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+	btn.Text = "   " .. icon .. "  " .. name
+	btn.TextColor3 = Color3.fromRGB(180, 180, 180)
+	btn.Font = Enum.Font.Gotham
+	btn.TextSize = 13
+	btn.TextXAlignment = Enum.TextXAlignment.Left
+	btn.BorderSizePixel = 0
+	btn.Parent = sidebar
+	
+	-- แถบสีฟ้าด้านซ้ายมือเวลาถูกเลือก
+	local indicator = Instance.new("Frame")
+	indicator.Size = UDim2.new(0, 3, 1, 0)
+	indicator.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+	indicator.BorderSizePixel = 0
+	indicator.Visible = false
+	indicator.Parent = btn
+
+	-- สร้างหน้าต่างเนื้อหาสำหรับ Tab นี้
+	local page = Instance.new("Frame")
+	page.Size = UDim2.new(1, -20, 1, -20)
+	page.Position = UDim2.new(0, 10, 0, 10)
+	page.BackgroundTransparency = 1
+	page.Visible = false
+	page.Parent = contentArea
+
+	tabs[name] = {Button = btn, Indicator = indicator, Page = page}
+
+	-- ระบบคลิกเพื่อเปลี่ยน Tab
+	btn.MouseButton1Click:Connect(function()
+		if activeTab == name then return end
+		-- ปิดอันเก่า
+		if activeTab then
+			tabs[activeTab].Button.BackgroundTransparency = 1
+			tabs[activeTab].Button.TextColor3 = Color3.fromRGB(180, 180, 180)
+			tabs[activeTab].Indicator.Visible = false
+			tabs[activeTab].Page.Visible = false
+		end
+		-- เปิดอันใหม่
+		activeTab = name
+		btn.BackgroundTransparency = 0.5
+		btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+		indicator.Visible = true
+		page.Visible = true
+	end)
+
+	if isDefault then
+		-- บังคับให้คลิก Tab นี้เป็นค่าเริ่มต้น
+		btn.BackgroundTransparency = 0.5
+		btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+		indicator.Visible = true
+		page.Visible = true
+		activeTab = name
+	end
+
+	return page
+end
+
+-- สร้างหน้าเนื้อหาแต่ละ Tab
+local homePage = createTab("Home", "🏠", false)
+local playersPage = createTab("Players", "👥", false)
+local visualsPage = createTab("Visuals", "🖼️", true) -- ให้ Visuals โชว์ก่อน
+
+-- --- ตกแต่งหน้า Home (ตัวอย่าง) ---
+local homeText = Instance.new("TextLabel", homePage)
+homeText.Size = UDim2.new(1, 0, 1, 0)
+homeText.BackgroundTransparency = 1
+homeText.Text = "Welcome to Main Menu!"
+homeText.TextColor3 = Color3.fromRGB(150, 150, 150)
+homeText.Font = Enum.Font.GothamMedium
+homeText.TextSize = 16
+
+-- --- ตกแต่งหน้า Players (ตัวอย่าง) ---
+local playerText = Instance.new("TextLabel", playersPage)
+playerText.Size = UDim2.new(1, 0, 1, 0)
+playerText.BackgroundTransparency = 1
+playerText.Text = "Player List (Comming Soon...)"
+playerText.TextColor3 = Color3.fromRGB(150, 150, 150)
+playerText.Font = Enum.Font.GothamMedium
+playerText.TextSize = 16
+
+-- ==========================================
+-- 5. ตกแต่งหน้า Visuals (ตามรูปภาพ)
+-- ==========================================
+-- กล่อง Info
+local infoBox = Instance.new("Frame")
+infoBox.Size = UDim2.new(1, 0, 0, 35)
+infoBox.BackgroundColor3 = Color3.fromRGB(25, 35, 45) -- โทนน้ำเงินเข้ม
+infoBox.Parent = visualsPage
+Instance.new("UICorner", infoBox).CornerRadius = UDim.new(0, 6)
+local infoStroke = Instance.new("UIStroke", infoBox)
+infoStroke.Color = Color3.fromRGB(0, 150, 200)
+infoStroke.Thickness = 1
+
+local infoText = Instance.new("TextLabel")
+infoText.Size = UDim2.new(1, -40, 1, 0)
+infoText.Position = UDim2.new(0, 35, 0, 0)
+infoText.BackgroundTransparency = 1
+infoText.Text = "Wait 3-10 seconds"
+infoText.TextColor3 = Color3.fromRGB(200, 200, 200)
+infoText.Font = Enum.Font.Gotham
+infoText.TextSize = 13
+infoText.TextXAlignment = Enum.TextXAlignment.Left
+infoText.Parent = infoBox
+
+local infoIcon = Instance.new("TextLabel")
+infoIcon.Size = UDim2.new(0, 35, 1, 0)
+infoIcon.BackgroundTransparency = 1
+infoIcon.Text = "ℹ️"
+infoIcon.TextColor3 = Color3.fromRGB(0, 170, 255)
+infoIcon.Font = Enum.Font.Gotham
+infoIcon.TextSize = 14
+infoIcon.Parent = infoBox
+
+-- กล่อง Toggle Menu
+local toggleFrame = Instance.new("Frame")
+toggleFrame.Size = UDim2.new(1, 0, 0, 40)
+toggleFrame.Position = UDim2.new(0, 0, 0, 45)
+toggleFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+toggleFrame.Parent = visualsPage
+Instance.new("UICorner", toggleFrame).CornerRadius = UDim.new(0, 6)
+
+local toggleTitle = Instance.new("TextLabel")
+toggleTitle.Size = UDim2.new(1, -60, 1, 0)
+toggleTitle.Position = UDim2.new(0, 15, 0, 0)
+toggleTitle.BackgroundTransparency = 1
+toggleTitle.Text = "Character Highlight"
+toggleTitle.TextColor3 = Color3.fromRGB(220, 220, 220)
+toggleTitle.Font = Enum.Font.Gotham
+toggleTitle.TextSize = 14
+toggleTitle.TextXAlignment = Enum.TextXAlignment.Left
+toggleTitle.Parent = toggleFrame
+
+-- ปุ่ม Toggle สี่เหลี่ยม
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Size = UDim2.new(0, 24, 0, 24)
+toggleBtn.Position = UDim2.new(1, -35, 0.5, -12)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(90, 210, 90) -- สีเขียวแบบในภาพ
+toggleBtn.Text = ""
+toggleBtn.Parent = toggleFrame
+Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(0, 4)
+
+local isHighlightOn = true
+
+toggleBtn.MouseButton1Click:Connect(function()
+	isHighlightOn = not isHighlightOn
+	
+	-- ใช้ TweenService เพื่อให้เปลี่ยนสีแบบสมูท
+	local targetColor = isHighlightOn and Color3.fromRGB(90, 210, 90) or Color3.fromRGB(70, 70, 70)
+	local tween = TweenService:Create(toggleBtn, TweenInfo.new(0.2), {BackgroundColor3 = targetColor})
+	tween:Play()
+
+	if isHighlightOn then
+		print("✅ เปิดระบบ Character Highlight")
+	else
+		print("❌ ปิดระบบ Character Highlight")
+	end
+end)
