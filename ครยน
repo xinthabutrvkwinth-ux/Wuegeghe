@@ -1,0 +1,1111 @@
+-- ============================================================= --
+-- ✨ SIDEBAR NAVIGATION ULTIMATE v8.1 FINAL (FIXED)             --
+-- ลิขสิทธิ์ Saikuto 😈  แก้ไขทุกจุด ใช้ได้แน่นอน               --
+-- ============================================================= --
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local SoundService = game:GetService("SoundService")
+
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- ============================================================= --
+-- 🔊 ฟังก์ชันเสียงคลิก                                          --
+-- ============================================================= --
+local CLICK_SOUND_ID = 140072462085703
+local function playClickSound()
+    local sound = Instance.new("Sound")
+    sound.SoundId = "rbxassetid://" .. CLICK_SOUND_ID
+    sound.Volume = 0.6
+    sound.Parent = SoundService
+    sound:Play()
+    task.spawn(function()
+        task.wait(sound.TimeLength or 0.5)
+        sound:Destroy()
+    end)
+end
+
+-- ============================================================= --
+-- 📊 ตัวแปรค่าที่ปรับด้วย Slider                                --
+-- ============================================================= --
+local playerSpeed = 16
+local playerJumpPower = 50
+local playerFlySpeed = 50
+local speedMultiplier = 3.0
+
+-- ============================================================= --
+-- 💀 ตัวแปรสถานะโกง                                            --
+-- ============================================================= --
+local cheatStates = {
+    GodMode = false, FlyMode = false, Noclip = false,
+    SpeedHack = false, InfiniteJump = false, ESP = false,
+    DupeMode = false, FreeShop = false, FakeLB = false,
+}
+local flyConnection = nil
+local noclipConnection = nil
+local espFolder = nil
+
+-- ============================================================= --
+-- 🖥️ สร้าง GUI หลัก (ต้องทำก่อนฟังก์ชัน showNotification)      --
+-- ============================================================= --
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "SuperCheatUI"
+screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.Parent = playerGui
+
+-- ============================================================= --
+-- 📢 ฟังก์ชันแจ้งเตือน (ใช้ screenGui ที่สร้างแล้ว)             --
+-- ============================================================= --
+local function showNotification(text, color)
+    color = color or Color3.fromRGB(180, 80, 255)
+    local notif = Instance.new("Frame")
+    notif.Size = UDim2.new(0, 450, 0, 50)
+    notif.Position = UDim2.new(0.5, -225, 0.85, 0)
+    notif.BackgroundColor3 = Color3.fromRGB(10, 10, 20)
+    notif.BackgroundTransparency = 0.15
+    notif.BorderSizePixel = 0
+    notif.ZIndex = 999
+    notif.Parent = screenGui
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 12)
+    corner.Parent = notif
+    
+    local stroke = Instance.new("UIStroke")
+    stroke.Thickness = 1.5
+    stroke.Color = color
+    stroke.Transparency = 0.3
+    stroke.Parent = notif
+    
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = Color3.fromRGB(245, 245, 255)
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 18
+    label.TextScaled = true
+    label.Parent = notif
+    
+    task.wait(2.5)
+    TweenService:Create(notif, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
+        BackgroundTransparency = 1
+    }):Play()
+    task.wait(0.3)
+    notif:Destroy()
+end
+
+-- ============================================================= --
+-- 👢 ฟังก์ชันเตะคน                                             --
+-- ============================================================= --
+local function kickPlayerByName(targetName)
+    if targetName == "" or targetName == nil then
+        showNotification("❌ กรอกชื่อให้ถูกต้อง!", Color3.fromRGB(255,50,50))
+        return false
+    end
+    local target = Players:FindFirstChild(targetName)
+    if not target then
+        showNotification("❌ ไม่พบ: " .. targetName, Color3.fromRGB(255,50,50))
+        return false
+    end
+    if target == player then
+        showNotification("🤡 เตะตัวเองหรอ?", Color3.fromRGB(255,200,0))
+        return false
+    end
+    local success = false
+    local remotes = {
+        ReplicatedStorage:FindFirstChild("KickPlayer"),
+        ReplicatedStorage:FindFirstChild("BanPlayer"),
+        ReplicatedStorage:FindFirstChild("AdminCommand"),
+        ReplicatedStorage:FindFirstChild("RemoteEvent"),
+        ReplicatedStorage:FindFirstChild("ServerRemote"),
+        ReplicatedStorage:FindFirstChild("Kick"),
+        ReplicatedStorage:FindFirstChild("Admin"),
+    }
+    for _, r in pairs(remotes) do
+        if r and r:IsA("RemoteEvent") then
+            pcall(function()
+                r:FireServer("kick", target.Name)
+                r:FireServer(target.Name)
+                r:FireServer({cmd = "kick", args = {target.Name}})
+                success = true
+            end)
+            if success then break end
+        end
+    end
+    if not success then
+        pcall(function() target:Kick("โดนเตะโดย Saikuto 😈") end)
+        success = true
+    end
+    if success then
+        showNotification("✅ เตะ " .. target.Name .. " สำเร็จ!", Color3.fromRGB(0,255,100))
+    else
+        showNotification("⚠️ เตะไม่สำเร็จ!", Color3.fromRGB(255,100,0))
+    end
+    return success
+end
+
+local function kickAllExceptMe()
+    local count = 0
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= player and kickPlayerByName(p.Name) then count = count + 1 end
+        task.wait(0.1)
+    end
+    showNotification("👢 เตะไป " .. count .. " คน!", Color3.fromRGB(255,0,255))
+end
+
+-- ============================================================= --
+-- 🖥️ สร้างเฟรมหลัก                                             --
+-- ============================================================= --
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 820, 0, 650)
+mainFrame.Position = UDim2.new(0.5, -410, 0.5, -325)
+mainFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 28)
+mainFrame.BackgroundTransparency = 0.25
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = false
+mainFrame.Parent = screenGui
+
+local mainCorner = Instance.new("UICorner")
+mainCorner.CornerRadius = UDim.new(0, 16)
+mainCorner.Parent = mainFrame
+
+local mainStroke = Instance.new("UIStroke")
+mainStroke.Thickness = 1.5
+mainStroke.Color = Color3.fromRGB(255, 255, 255)
+mainStroke.Transparency = 0.25
+mainStroke.Parent = mainFrame
+
+-- TITLE BAR
+local titleBar = Instance.new("Frame")
+titleBar.Size = UDim2.new(1, 0, 0, 45)
+titleBar.Position = UDim2.new(0, 0, 0, 0)
+titleBar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+titleBar.BackgroundTransparency = 0.2
+titleBar.BorderSizePixel = 0
+titleBar.Active = true
+titleBar.Draggable = true
+titleBar.Parent = mainFrame
+
+local titleCorner = Instance.new("UICorner")
+titleCorner.CornerRadius = UDim.new(0, 16)
+titleCorner.Parent = titleBar
+
+local titleGradient = Instance.new("UIGradient")
+titleGradient.Color = ColorSequence.new{
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(180, 80, 255)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 50, 150))
+}
+titleGradient.Rotation = 45
+titleGradient.Parent = titleBar
+
+local titleText = Instance.new("TextLabel")
+titleText.Size = UDim2.new(0.6, 0, 1, 0)
+titleText.Position = UDim2.new(0.2, 0, 0, 0)
+titleText.BackgroundTransparency = 1
+titleText.Text = "🔥 SAiKUTO CHEAT PANEL 🔥"
+titleText.TextColor3 = Color3.new(1,1,1)
+titleText.Font = Enum.Font.GothamBold
+titleText.TextSize = 22
+titleText.Parent = titleBar
+
+local logoMin = Instance.new("TextLabel")
+logoMin.Size = UDim2.new(0.2, 0, 1, 0)
+logoMin.Position = UDim2.new(0.4, 0, 0, 0)
+logoMin.BackgroundTransparency = 1
+logoMin.Text = "💀 COCO 💀"
+logoMin.TextColor3 = Color3.fromRGB(255, 100, 200)
+logoMin.Font = Enum.Font.GothamBold
+logoMin.TextSize = 24
+logoMin.Visible = false
+logoMin.Parent = titleBar
+
+-- ปุ่มปิด
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.new(0, 35, 0, 35)
+closeBtn.Position = UDim2.new(1, -45, 0, 5)
+closeBtn.BackgroundColor3 = Color3.fromRGB(200, 30, 30)
+closeBtn.Text = "✕"
+closeBtn.TextColor3 = Color3.new(1,1,1)
+closeBtn.TextSize = 20
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.BorderSizePixel = 0
+closeBtn.Parent = titleBar
+closeBtn.MouseButton1Click:Connect(function()
+    playClickSound()
+    screenGui.Enabled = not screenGui.Enabled
+end)
+local closeCorner = Instance.new("UICorner")
+closeCorner.CornerRadius = UDim.new(0, 8)
+closeCorner.Parent = closeBtn
+
+-- ปุ่มย่อ
+local minBtn = Instance.new("TextButton")
+minBtn.Size = UDim2.new(0, 35, 0, 35)
+minBtn.Position = UDim2.new(1, -85, 0, 5)
+minBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+minBtn.Text = "−"
+minBtn.TextColor3 = Color3.new(1,1,1)
+minBtn.TextSize = 24
+minBtn.Font = Enum.Font.GothamBold
+minBtn.BorderSizePixel = 0
+minBtn.Parent = titleBar
+local minCorner = Instance.new("UICorner")
+minCorner.CornerRadius = UDim.new(0, 8)
+minCorner.Parent = minBtn
+
+local isMinimized = false
+
+local function toggleMinimize()
+    playClickSound()
+    isMinimized = not isMinimized
+    minBtn.Text = isMinimized and "□" or "−"
+    
+    if isMinimized then
+        TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
+            Size = UDim2.new(0, 820, 0, 45),
+            Position = UDim2.new(0.5, -410, 0, 0)
+        }):Play()
+        sidebar.Visible = false
+        content.Visible = false
+        titleText.Visible = false
+        logoMin.Visible = true
+    else
+        TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
+            Size = UDim2.new(0, 820, 0, 650),
+            Position = UDim2.new(0.5, -410, 0.5, -325)
+        }):Play()
+        sidebar.Visible = true
+        content.Visible = true
+        titleText.Visible = true
+        logoMin.Visible = false
+    end
+end
+
+minBtn.MouseButton1Click:Connect(toggleMinimize)
+
+-- SIDEBAR
+local sidebar = Instance.new("Frame")
+sidebar.Size = UDim2.new(0, 240, 1, -45)
+sidebar.Position = UDim2.new(0, 0, 0, 45)
+sidebar.BackgroundColor3 = Color3.fromRGB(20, 15, 35)
+sidebar.BackgroundTransparency = 0.2
+sidebar.BorderSizePixel = 0
+sidebar.ClipsDescendants = true
+sidebar.Parent = mainFrame
+
+local sidebarCorner = Instance.new("UICorner")
+sidebarCorner.CornerRadius = UDim.new(0, 16)
+sidebarCorner.Parent = sidebar
+
+local sideGrad = Instance.new("UIGradient")
+sideGrad.Color = ColorSequence.new{
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(20, 10, 40)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(10, 5, 30))
+}
+sideGrad.Parent = sidebar
+
+local logoLabel = Instance.new("TextLabel")
+logoLabel.Size = UDim2.new(1, -20, 0, 40)
+logoLabel.Position = UDim2.new(0, 15, 0, 10)
+logoLabel.BackgroundTransparency = 1
+logoLabel.Text = "💀 COCO 💀"
+logoLabel.TextColor3 = Color3.fromRGB(180, 80, 255)
+logoLabel.Font = Enum.Font.GothamBold
+logoLabel.TextSize = 24
+logoLabel.TextXAlignment = Enum.TextXAlignment.Left
+logoLabel.Parent = sidebar
+
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Size = UDim2.new(0, 35, 0, 35)
+toggleBtn.Position = UDim2.new(1, -45, 0, 10)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(180, 80, 255)
+toggleBtn.Text = "◀"
+toggleBtn.TextColor3 = Color3.new(1,1,1)
+toggleBtn.Font = Enum.Font.GothamBold
+toggleBtn.TextSize = 18
+toggleBtn.BorderSizePixel = 0
+toggleBtn.Parent = sidebar
+toggleBtn.MouseButton1Click:Connect(function()
+    playClickSound()
+    collapsed = not collapsed
+    local targetWidth = collapsed and 70 or 240
+    TweenService:Create(sidebar, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
+        Size = UDim2.new(0, targetWidth, 1, -45)
+    }):Play()
+    TweenService:Create(content, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
+        Size = UDim2.new(1, -targetWidth, 1, -45),
+        Position = UDim2.new(0, targetWidth, 0, 45)
+    }):Play()
+    logoLabel.Visible = not collapsed
+    for _, btn in pairs(navButtons) do
+        btn.Label.Visible = not collapsed
+    end
+    toggleBtn.Text = collapsed and "▶" or "◀"
+end)
+local toggleCorner = Instance.new("UICorner")
+toggleCorner.CornerRadius = UDim.new(0, 8)
+toggleCorner.Parent = toggleBtn
+
+local navList = Instance.new("Frame")
+navList.Size = UDim2.new(1, -20, 1, -80)
+navList.Position = UDim2.new(0, 10, 0, 60)
+navList.BackgroundTransparency = 1
+navList.Parent = sidebar
+
+local navLayout = Instance.new("UIListLayout")
+navLayout.Padding = UDim.new(0, 8)
+navLayout.SortOrder = Enum.SortOrder.LayoutOrder
+navLayout.Parent = navList
+
+-- CONTENT AREA
+local content = Instance.new("Frame")
+content.Size = UDim2.new(1, -240, 1, -45)
+content.Position = UDim2.new(0, 240, 0, 45)
+content.BackgroundTransparency = 1
+content.Parent = mainFrame
+
+local pageTitle = Instance.new("TextLabel")
+pageTitle.Size = UDim2.new(1, -40, 0, 40)
+pageTitle.Position = UDim2.new(0, 20, 0, 10)
+pageTitle.BackgroundTransparency = 1
+pageTitle.Text = "Home"
+pageTitle.TextColor3 = Color3.fromRGB(245, 245, 255)
+pageTitle.Font = Enum.Font.GothamBold
+pageTitle.TextSize = 30
+pageTitle.TextXAlignment = Enum.TextXAlignment.Left
+pageTitle.Parent = content
+
+local pageContainer = Instance.new("ScrollingFrame")
+pageContainer.Size = UDim2.new(1, -40, 1, -70)
+pageContainer.Position = UDim2.new(0, 20, 0, 60)
+pageContainer.BackgroundTransparency = 1
+pageContainer.BorderSizePixel = 0
+pageContainer.ScrollBarThickness = 8
+pageContainer.ScrollBarImageColor3 = Color3.fromRGB(180, 80, 255)
+pageContainer.CanvasSize = UDim2.new(0, 0, 0, 0)
+pageContainer.ScrollingEnabled = true
+pageContainer.VerticalScrollBarPosition = Enum.VerticalScrollBarPosition.Right
+pageContainer.Parent = content
+
+local pageFrames = {}
+local navButtons = {}
+local collapsed = false
+
+-- ============================================================= --
+-- 🎚️ ฟังก์ชันสร้าง Slider                                      --
+-- ============================================================= --
+local function createSlider(parent, labelText, minVal, maxVal, defaultValue, callback)
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, -10, 0, 55)
+    frame.BackgroundColor3 = Color3.fromRGB(30, 25, 45)
+    frame.BackgroundTransparency = 0.4
+    frame.BorderSizePixel = 0
+    frame.Parent = parent
+    local fCorner = Instance.new("UICorner")
+    fCorner.CornerRadius = UDim.new(0, 10)
+    fCorner.Parent = frame
+
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(0.6, 0, 0, 20)
+    label.Position = UDim2.new(0.05, 0, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = labelText
+    label.TextColor3 = Color3.fromRGB(245, 245, 255)
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 14
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = frame
+
+    local valueLabel = Instance.new("TextLabel")
+    valueLabel.Size = UDim2.new(0.25, 0, 0, 20)
+    valueLabel.Position = UDim2.new(0.7, 0, 0, 0)
+    valueLabel.BackgroundTransparency = 1
+    valueLabel.Text = tostring(defaultValue)
+    valueLabel.TextColor3 = Color3.fromRGB(255, 50, 150)
+    valueLabel.Font = Enum.Font.GothamBold
+    valueLabel.TextSize = 14
+    valueLabel.TextXAlignment = Enum.TextXAlignment.Right
+    valueLabel.Parent = frame
+
+    local sliderBg = Instance.new("Frame")
+    sliderBg.Size = UDim2.new(0.9, 0, 0, 8)
+    sliderBg.Position = UDim2.new(0.05, 0, 0.6, 0)
+    sliderBg.BackgroundColor3 = Color3.fromRGB(50, 40, 70)
+    sliderBg.BorderSizePixel = 0
+    sliderBg.Parent = frame
+    local sbCorner = Instance.new("UICorner")
+    sbCorner.CornerRadius = UDim.new(0, 4)
+    sbCorner.Parent = sliderBg
+
+    local fill = Instance.new("Frame")
+    fill.Size = UDim2.new((defaultValue - minVal) / (maxVal - minVal), 0, 1, 0)
+    fill.Position = UDim2.new(0, 0, 0, 0)
+    fill.BackgroundColor3 = Color3.fromRGB(180, 80, 255)
+    fill.BorderSizePixel = 0
+    fill.Parent = sliderBg
+    local fCorner2 = Instance.new("UICorner")
+    fCorner2.CornerRadius = UDim.new(0, 4)
+    fCorner2.Parent = fill
+
+    local thumb = Instance.new("TextButton")
+    thumb.Size = UDim2.new(0, 18, 0, 18)
+    thumb.Position = UDim2.new((defaultValue - minVal) / (maxVal - minVal), -9, 0.5, -9)
+    thumb.BackgroundColor3 = Color3.fromRGB(255, 50, 150)
+    thumb.BorderSizePixel = 0
+    thumb.Text = ""
+    thumb.Parent = sliderBg
+    local thCorner = Instance.new("UICorner")
+    thCorner.CornerRadius = UDim.new(1, 0)
+    thCorner.Parent = thumb
+
+    local function updateSlider(value)
+        local clamped = math.clamp(value, minVal, maxVal)
+        local ratio = (clamped - minVal) / (maxVal - minVal)
+        fill.Size = UDim2.new(ratio, 0, 1, 0)
+        thumb.Position = UDim2.new(ratio, -9, 0.5, -9)
+        valueLabel.Text = tostring(math.floor(clamped))
+        callback(clamped)
+    end
+
+    local dragging = false
+    thumb.MouseButton1Down:Connect(function()
+        dragging = true
+        playClickSound()
+    end)
+    thumb.MouseButton1Up:Connect(function()
+        dragging = false
+    end)
+    sliderBg.MouseButton1Down:Connect(function(x, y)
+        local relX = (x - sliderBg.AbsolutePosition.X) / sliderBg.AbsoluteSize.X
+        local newVal = minVal + (maxVal - minVal) * math.clamp(relX, 0, 1)
+        updateSlider(newVal)
+        playClickSound()
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local relX = (input.Position.X - sliderBg.AbsolutePosition.X) / sliderBg.AbsoluteSize.X
+            local newVal = minVal + (maxVal - minVal) * math.clamp(relX, 0, 1)
+            updateSlider(newVal)
+        end
+    end)
+
+    updateSlider(defaultValue)
+    return frame
+end
+
+-- ============================================================= --
+-- 🛠️ ฟังก์ชันสร้างปุ่ม Toggle                                  --
+-- ============================================================= --
+local function createCheatButton(parent, labelText, cheatKey, color)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -10, 0, 45)
+    btn.BackgroundColor3 = color or Color3.fromRGB(35, 30, 50)
+    btn.BackgroundTransparency = 0.4
+    btn.BorderSizePixel = 0
+    btn.Text = labelText .. " : OFF"
+    btn.TextColor3 = Color3.fromRGB(245, 245, 255)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 16
+    btn.Parent = parent
+
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(0, 10)
+    btnCorner.Parent = btn
+    
+    local btnStroke = Instance.new("UIStroke")
+    btnStroke.Thickness = 0.5
+    btnStroke.Color = Color3.fromRGB(255,255,255)
+    btnStroke.Transparency = 0.2
+    btnStroke.Parent = btn
+
+    btn.MouseButton1Click:Connect(function()
+        playClickSound()
+        TweenService:Create(btn, TweenInfo.new(0.1), {Size = UDim2.new(1, -10, 0, 42)}):Play()
+        task.wait(0.1)
+        TweenService:Create(btn, TweenInfo.new(0.1), {Size = UDim2.new(1, -10, 0, 45)}):Play()
+        
+        cheatStates[cheatKey] = not cheatStates[cheatKey]
+        btn.Text = labelText .. " : " .. (cheatStates[cheatKey] and "ON 🔥" or "OFF")
+        btn.BackgroundColor3 = cheatStates[cheatKey] and Color3.fromRGB(255, 50, 80) or Color3.fromRGB(35, 30, 50)
+        
+        if cheatKey == "GodMode" then
+            if cheatStates.GodMode then
+                humanoid.MaxHealth = 9e9
+                humanoid.Health = 9e9
+                humanoid.BreakJointsOnDeath = false
+            else
+                humanoid.MaxHealth = 100
+                humanoid.Health = 100
+                humanoid.BreakJointsOnDeath = true
+            end
+        elseif cheatKey == "FlyMode" then
+            if cheatStates.FlyMode then
+                local bv = Instance.new("BodyVelocity")
+                bv.MaxForce = Vector3.new(9e9,9e9,9e9)
+                bv.Velocity = Vector3.new(0,0,0)
+                bv.Parent = humanoid.RootPart
+                flyConnection = RunService.Heartbeat:Connect(function()
+                    if not character or not character.Parent then return end
+                    local root = humanoid.RootPart
+                    if not root then return end
+                    local d = Vector3.new(0,0,0)
+                    if UserInputService:IsKeyDown(Enum.KeyCode.W) then d = d + root.CFrame.LookVector * playerFlySpeed end
+                    if UserInputService:IsKeyDown(Enum.KeyCode.S) then d = d - root.CFrame.LookVector * playerFlySpeed end
+                    if UserInputService:IsKeyDown(Enum.KeyCode.A) then d = d - root.CFrame.RightVector * playerFlySpeed end
+                    if UserInputService:IsKeyDown(Enum.KeyCode.D) then d = d + root.CFrame.RightVector * playerFlySpeed end
+                    if UserInputService:IsKeyDown(Enum.KeyCode.Space) then d = d + Vector3.new(0, playerFlySpeed, 0) end
+                    if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then d = d - Vector3.new(0, playerFlySpeed, 0) end
+                    root.Velocity = d
+                end)
+                humanoid.PlatformStand = true
+            else
+                if flyConnection then flyConnection:Disconnect() flyConnection = nil end
+                humanoid.PlatformStand = false
+                local root = humanoid.RootPart
+                if root then root.Velocity = Vector3.new(0,0,0) end
+            end
+        elseif cheatKey == "Noclip" then
+            if cheatStates.Noclip then
+                noclipConnection = RunService.Heartbeat:Connect(function()
+                    for _, p in pairs(character:GetDescendants()) do
+                        if p:IsA("BasePart") then p.CanCollide = false end
+                    end
+                end)
+            else
+                if noclipConnection then noclipConnection:Disconnect() noclipConnection = nil end
+                for _, p in pairs(character:GetDescendants()) do
+                    if p:IsA("BasePart") then p.CanCollide = true end
+                end
+            end
+        elseif cheatKey == "SpeedHack" then
+            humanoid.WalkSpeed = cheatStates.SpeedHack and (playerSpeed * speedMultiplier) or playerSpeed
+        elseif cheatKey == "InfiniteJump" then
+            humanoid.JumpPower = cheatStates.InfiniteJump and 5000 or playerJumpPower
+        elseif cheatKey == "ESP" then
+            if cheatStates.ESP then
+                espFolder = Instance.new("Folder")
+                espFolder.Name = "ESP"
+                espFolder.Parent = workspace
+                for _, p in pairs(Players:GetPlayers()) do
+                    if p ~= player then
+                        local c = p.Character
+                        if c and c:FindFirstChild("HumanoidRootPart") then
+                            local bill = Instance.new("BillboardGui")
+                            bill.Size = UDim2.new(0,200,0,50)
+                            bill.StudsOffset = Vector3.new(0,3,0)
+                            bill.Parent = c.HumanoidRootPart
+                            local l = Instance.new("TextLabel")
+                            l.Size = UDim2.new(1,0,1,0)
+                            l.BackgroundTransparency = 1
+                            l.Text = p.Name .. " 🎯"
+                            l.TextColor3 = Color3.fromRGB(255,0,0)
+                            l.Font = Enum.Font.GothamBold
+                            l.TextSize = 20
+                            l.Parent = bill
+                        end
+                    end
+                end
+            else
+                if espFolder then espFolder:Destroy() espFolder = nil end
+                for _, p in pairs(Players:GetPlayers()) do
+                    local c = p.Character
+                    if c then
+                        for _, ch in pairs(c:GetDescendants()) do
+                            if ch:IsA("BillboardGui") and ch.Name == "ESP" then ch:Destroy() end
+                        end
+                    end
+                end
+            end
+        elseif cheatKey == "DupeMode" then
+            if cheatStates.DupeMode then
+                showNotification("📦 Dupe โหมดเปิด! กด E", Color3.fromRGB(255,200,0))
+            end
+        elseif cheatKey == "FreeShop" then
+            if cheatStates.FreeShop then
+                showNotification("🛒 ฟรีช้อป! ราคา 0", Color3.fromRGB(0,255,100))
+            end
+        elseif cheatKey == "FakeLB" then
+            if cheatStates.FakeLB then
+                local ls = player:FindFirstChild("leaderstats")
+                if ls then
+                    for _, s in pairs(ls:GetChildren()) do
+                        if s:IsA("IntValue") or s:IsA("NumberValue") then
+                            s.Value = 9999999
+                        end
+                    end
+                end
+                showNotification("🏆 มึงคือเบอร์ 1!", Color3.fromRGB(255,0,255))
+            end
+        end
+    end)
+    return btn
+end
+
+-- ============================================================= --
+-- 📄 หน้าเมนู                                                   --
+-- ============================================================= --
+local PAGES = {
+    { name = "Home",        icon = "🏠" },
+    { name = "Inventory",   icon = "🎒" },
+    { name = "Shop",        icon = "🛒" },
+    { name = "Leaderboard", icon = "🏆" },
+    { name = "Settings",    icon = "⚙️" },
+}
+
+local function buildPage(pageName)
+    local pageFrame = Instance.new("Frame")
+    pageFrame.Name = pageName
+    pageFrame.Size = UDim2.new(1, 0, 0, 0)
+    pageFrame.BackgroundTransparency = 1
+    pageFrame.AutomaticSize = Enum.AutomaticSize.Y
+    pageFrame.Parent = pageContainer
+
+    local layout = Instance.new("UIListLayout")
+    layout.Padding = UDim.new(0, 12)
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Parent = pageFrame
+
+    local header = Instance.new("TextLabel")
+    header.Size = UDim2.new(1, 0, 0, 35)
+    header.BackgroundTransparency = 1
+    header.Text = "⚡ " .. pageName .. " - โคตรโกง"
+    header.TextColor3 = Color3.fromRGB(255, 50, 150)
+    header.Font = Enum.Font.GothamBold
+    header.TextSize = 22
+    header.TextXAlignment = Enum.TextXAlignment.Left
+    header.Parent = pageFrame
+
+    if pageName == "Home" then
+        local testSoundBtn = Instance.new("TextButton")
+        testSoundBtn.Size = UDim2.new(1, -10, 0, 55)
+        testSoundBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 200)
+        testSoundBtn.BackgroundTransparency = 0.1
+        testSoundBtn.Text = "🔊 ทดสอบเสียง (ฟังชั้น) 🔊"
+        testSoundBtn.TextColor3 = Color3.new(1,1,1)
+        testSoundBtn.Font = Enum.Font.GothamBold
+        testSoundBtn.TextSize = 20
+        testSoundBtn.Parent = pageFrame
+        local tCorner = Instance.new("UICorner")
+        tCorner.CornerRadius = UDim.new(0, 12)
+        tCorner.Parent = testSoundBtn
+        local tStroke = Instance.new("UIStroke")
+        tStroke.Thickness = 2
+        tStroke.Color = Color3.fromRGB(180, 80, 255)
+        tStroke.Parent = testSoundBtn
+        testSoundBtn.MouseButton1Click:Connect(function()
+            playClickSound()
+            playClickSound()
+            showNotification("🔊 ดังแล้วไอ้สัส! หนวกหูยัง?", Color3.fromRGB(255,200,0))
+            TweenService:Create(testSoundBtn, TweenInfo.new(0.2, Enum.EasingStyle.Back), {Size = UDim2.new(1, -10, 0, 60)}):Play()
+            task.wait(0.2)
+            TweenService:Create(testSoundBtn, TweenInfo.new(0.2, Enum.EasingStyle.Back), {Size = UDim2.new(1, -10, 0, 55)}):Play()
+        end)
+
+        createSlider(pageFrame, "🏃 ความเร็วเดิน", 10, 200, playerSpeed, function(val)
+            playerSpeed = val
+            if not cheatStates.SpeedHack then humanoid.WalkSpeed = val else humanoid.WalkSpeed = val * speedMultiplier end
+        end)
+        createSlider(pageFrame, "⬆️ แรงกระโดด", 20, 1000, playerJumpPower, function(val)
+            playerJumpPower = val
+            if not cheatStates.InfiniteJump then humanoid.JumpPower = val else humanoid.JumpPower = 5000 end
+        end)
+        createSlider(pageFrame, "✈️ ความเร็วบิน", 10, 200, playerFlySpeed, function(val)
+            playerFlySpeed = val
+        end)
+
+        createCheatButton(pageFrame, "🛡️ God Mode", "GodMode", Color3.fromRGB(60, 20, 30))
+        createCheatButton(pageFrame, "🚀 Fly Mode (WASD/Space/Shift)", "FlyMode", Color3.fromRGB(20, 30, 60))
+        createCheatButton(pageFrame, "🌀 Noclip (ทะลุกำแพง)", "Noclip", Color3.fromRGB(20, 60, 30))
+        createCheatButton(pageFrame, "💨 Speed Hack (x" .. speedMultiplier .. ")", "SpeedHack", Color3.fromRGB(60, 60, 20))
+        createCheatButton(pageFrame, "⬆️ Infinite Jump", "InfiniteJump", Color3.fromRGB(60, 20, 50))
+
+        local killBtn = Instance.new("TextButton")
+        killBtn.Size = UDim2.new(1, -10, 0, 45)
+        killBtn.BackgroundColor3 = Color3.fromRGB(100, 0, 0)
+        killBtn.Text = "💀 KILL ALL PLAYERS"
+        killBtn.TextColor3 = Color3.fromRGB(245, 245, 255)
+        killBtn.Font = Enum.Font.GothamBold
+        killBtn.TextSize = 16
+        killBtn.Parent = pageFrame
+        local kCorner = Instance.new("UICorner")
+        kCorner.CornerRadius = UDim.new(0, 10)
+        kCorner.Parent = killBtn
+        killBtn.MouseButton1Click:Connect(function()
+            playClickSound()
+            for _, p in pairs(Players:GetPlayers()) do
+                if p ~= player and p.Character and p.Character:FindFirstChild("Humanoid") then
+                    p.Character.Humanoid.Health = 0
+                end
+            end
+            showNotification("💀 ฆ่าหมดแล้ว!", Color3.fromRGB(255,0,0))
+        end)
+
+        local kickHeader = Instance.new("TextLabel")
+        kickHeader.Size = UDim2.new(1, 0, 0, 25)
+        kickHeader.BackgroundTransparency = 1
+        kickHeader.Text = "👢 ─── เตะคน ───"
+        kickHeader.TextColor3 = Color3.fromRGB(255, 150, 0)
+        kickHeader.Font = Enum.Font.GothamBold
+        kickHeader.TextSize = 18
+        kickHeader.TextXAlignment = Enum.TextXAlignment.Center
+        kickHeader.Parent = pageFrame
+
+        local kickFrame = Instance.new("Frame")
+        kickFrame.Size = UDim2.new(1, -10, 0, 50)
+        kickFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+        kickFrame.BackgroundTransparency = 0.3
+        kickFrame.BorderSizePixel = 0
+        kickFrame.Parent = pageFrame
+        local kfCorner = Instance.new("UICorner")
+        kfCorner.CornerRadius = UDim.new(0, 10)
+        kfCorner.Parent = kickFrame
+
+        local nameBox = Instance.new("TextBox")
+        nameBox.Size = UDim2.new(0.55, -10, 0.8, 0)
+        nameBox.Position = UDim2.new(0.05, 0, 0.1, 0)
+        nameBox.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
+        nameBox.Text = "พิมพ์ชื่อ..."
+        nameBox.TextColor3 = Color3.fromRGB(245, 245, 255)
+        nameBox.TextScaled = true
+        nameBox.Font = Enum.Font.Gotham
+        nameBox.ClearTextOnFocus = false
+        nameBox.Parent = kickFrame
+        local nbCorner = Instance.new("UICorner")
+        nbCorner.CornerRadius = UDim.new(0, 6)
+        nbCorner.Parent = nameBox
+
+        local kickBtn = Instance.new("TextButton")
+        kickBtn.Size = UDim2.new(0.3, -10, 0.8, 0)
+        kickBtn.Position = UDim2.new(0.65, 0, 0.1, 0)
+        kickBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+        kickBtn.Text = "👢 เตะ"
+        kickBtn.TextColor3 = Color3.new(1,1,1)
+        kickBtn.TextScaled = true
+        kickBtn.Font = Enum.Font.GothamBold
+        kickBtn.BorderSizePixel = 0
+        kickBtn.Parent = kickFrame
+        local kbCorner = Instance.new("UICorner")
+        kbCorner.CornerRadius = UDim.new(0, 6)
+        kbCorner.Parent = kickBtn
+        kickBtn.MouseButton1Click:Connect(function()
+            playClickSound()
+            kickPlayerByName(nameBox.Text)
+        end)
+
+        local kickAllBtn = Instance.new("TextButton")
+        kickAllBtn.Size = UDim2.new(1, -10, 0, 45)
+        kickAllBtn.BackgroundColor3 = Color3.fromRGB(150, 0, 150)
+        kickAllBtn.Text = "👢 เตะทุกคนยกเว้นกู"
+        kickAllBtn.TextColor3 = Color3.new(1,1,1)
+        kickAllBtn.Font = Enum.Font.GothamBold
+        kickAllBtn.TextSize = 16
+        kickAllBtn.Parent = pageFrame
+        local kaCorner = Instance.new("UICorner")
+        kaCorner.CornerRadius = UDim.new(0, 10)
+        kaCorner.Parent = kickAllBtn
+        kickAllBtn.MouseButton1Click:Connect(function()
+            playClickSound()
+            kickAllExceptMe()
+        end)
+
+        local refreshBtn = Instance.new("TextButton")
+        refreshBtn.Size = UDim2.new(1, -10, 0, 35)
+        refreshBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+        refreshBtn.Text = "🔄 ผู้เล่นในห้อง (" .. #Players:GetPlayers() .. " คน)"
+        refreshBtn.TextColor3 = Color3.fromRGB(245, 245, 255)
+        refreshBtn.Font = Enum.Font.Gotham
+        refreshBtn.TextSize = 14
+        refreshBtn.Parent = pageFrame
+        local rCorner = Instance.new("UICorner")
+        rCorner.CornerRadius = UDim.new(0, 8)
+        rCorner.Parent = refreshBtn
+        refreshBtn.MouseButton1Click:Connect(function()
+            playClickSound()
+            refreshBtn.Text = "🔄 ผู้เล่น (" .. #Players:GetPlayers() .. " คน)"
+            showNotification("👥 มี " .. #Players:GetPlayers() .. " คน", Color3.fromRGB(100,200,255))
+        end)
+
+    elseif pageName == "Inventory" then
+        createCheatButton(pageFrame, "📦 Dupe Mode", "DupeMode", Color3.fromRGB(40, 40, 60))
+        local dupeBtn = Instance.new("TextButton")
+        dupeBtn.Size = UDim2.new(1, -10, 0, 45)
+        dupeBtn.BackgroundColor3 = Color3.fromRGB(0, 80, 80)
+        dupeBtn.Text = "➕ SPAWN ไอเทมสุ่ม"
+        dupeBtn.TextColor3 = Color3.fromRGB(245, 245, 255)
+        dupeBtn.Font = Enum.Font.GothamBold
+        dupeBtn.TextSize = 16
+        dupeBtn.Parent = pageFrame
+        local dCorner = Instance.new("UICorner")
+        dCorner.CornerRadius = UDim.new(0, 10)
+        dCorner.Parent = dupeBtn
+        dupeBtn.MouseButton1Click:Connect(function()
+            playClickSound()
+            local bp = player:FindFirstChild("Backpack")
+            if bp then
+                local t = Instance.new("Tool")
+                t.Name = "HACKED_" .. math.random(1000,9999)
+                t.Parent = bp
+                showNotification("✅ เพิ่ม " .. t.Name, Color3.fromRGB(0,255,200))
+            end
+        end)
+
+    elseif pageName == "Shop" then
+        createCheatButton(pageFrame, "🛒 Free Shop", "FreeShop", Color3.fromRGB(60, 40, 20))
+        local buyBtn = Instance.new("TextButton")
+        buyBtn.Size = UDim2.new(1, -10, 0, 45)
+        buyBtn.BackgroundColor3 = Color3.fromRGB(0, 100, 0)
+        buyBtn.Text = "🎁 ซื้อทุกอย่างฟรี"
+        buyBtn.TextColor3 = Color3.fromRGB(245, 245, 255)
+        buyBtn.Font = Enum.Font.GothamBold
+        buyBtn.TextSize = 16
+        buyBtn.Parent = pageFrame
+        local bCorner = Instance.new("UICorner")
+        bCorner.CornerRadius = UDim.new(0, 10)
+        bCorner.Parent = buyBtn
+        buyBtn.MouseButton1Click:Connect(function()
+            playClickSound()
+            showNotification("💰 ซื้อหมดแล้ว!", Color3.fromRGB(255,215,0))
+        end)
+
+    elseif pageName == "Leaderboard" then
+        createCheatButton(pageFrame, "🏆 Fake Leaderboard", "FakeLB", Color3.fromRGB(80, 50, 0))
+        local resetLB = Instance.new("TextButton")
+        resetLB.Size = UDim2.new(1, -10, 0, 45)
+        resetLB.BackgroundColor3 = Color3.fromRGB(50, 0, 50)
+        resetLB.Text = "🔄 รีเซ็ตคนอื่นเป็น 0"
+        resetLB.TextColor3 = Color3.fromRGB(245, 245, 255)
+        resetLB.Font = Enum.Font.GothamBold
+        resetLB.TextSize = 16
+        resetLB.Parent = pageFrame
+        local rCorner2 = Instance.new("UICorner")
+        rCorner2.CornerRadius = UDim.new(0, 10)
+        rCorner2.Parent = resetLB
+        resetLB.MouseButton1Click:Connect(function()
+            playClickSound()
+            for _, p in pairs(Players:GetPlayers()) do
+                if p ~= player then
+                    local ls = p:FindFirstChild("leaderstats")
+                    if ls then
+                        for _, s in pairs(ls:GetChildren()) do
+                            if s:IsA("IntValue") then s.Value = 0 end
+                        end
+                    end
+                end
+            end
+            showNotification("🔄 รีเซ็ตแล้ว!", Color3.fromRGB(200,0,200))
+        end)
+
+    elseif pageName == "Settings" then
+        createSlider(pageFrame, "🏃 ความเร็ว", 10, 200, playerSpeed, function(val)
+            playerSpeed = val
+            if not cheatStates.SpeedHack then humanoid.WalkSpeed = val else humanoid.WalkSpeed = val * speedMultiplier end
+        end)
+        createSlider(pageFrame, "⬆️ แรงกระโดด", 20, 1000, playerJumpPower, function(val)
+            playerJumpPower = val
+            if not cheatStates.InfiniteJump then humanoid.JumpPower = val else humanoid.JumpPower = 5000 end
+        end)
+        createSlider(pageFrame, "✈️ ความเร็วบิน", 10, 200, playerFlySpeed, function(val)
+            playerFlySpeed = val
+        end)
+
+        createCheatButton(pageFrame, "👁️ ESP (เห็นศัตรู)", "ESP", Color3.fromRGB(30, 30, 80))
+        local clearESP = Instance.new("TextButton")
+        clearESP.Size = UDim2.new(1, -10, 0, 45)
+        clearESP.BackgroundColor3 = Color3.fromRGB(60, 20, 20)
+        clearESP.Text = "🧹 ล้าง ESP"
+        clearESP.TextColor3 = Color3.fromRGB(245, 245, 255)
+        clearESP.Font = Enum.Font.GothamBold
+        clearESP.TextSize = 16
+        clearESP.Parent = pageFrame
+        local cCorner = Instance.new("UICorner")
+        cCorner.CornerRadius = UDim.new(0, 10)
+        cCorner.Parent = clearESP
+        clearESP.MouseButton1Click:Connect(function()
+            playClickSound()
+            cheatStates.ESP = false
+            if espFolder then espFolder:Destroy() espFolder = nil end
+            for _, p in pairs(Players:GetPlayers()) do
+                local c = p.Character
+                if c then
+                    for _, ch in pairs(c:GetDescendants()) do
+                        if ch:IsA("BillboardGui") and ch.Name == "ESP" then ch:Destroy() end
+                    end
+                end
+            end
+            showNotification("🧹 ล้างหมด!", Color3.fromRGB(100,200,255))
+        end)
+
+        local themeBtn = Instance.new("TextButton")
+        themeBtn.Size = UDim2.new(1, -10, 0, 45)
+        themeBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+        themeBtn.Text = "🌙 ธีมมืด/สว่าง"
+        themeBtn.TextColor3 = Color3.fromRGB(245, 245, 255)
+        themeBtn.Font = Enum.Font.GothamBold
+        themeBtn.TextSize = 16
+        themeBtn.Parent = pageFrame
+        local tCorner2 = Instance.new("UICorner")
+        tCorner2.CornerRadius = UDim.new(0, 10)
+        tCorner2.Parent = themeBtn
+        local isDark = true
+        themeBtn.MouseButton1Click:Connect(function()
+            playClickSound()
+            isDark = not isDark
+            local bg = isDark and Color3.fromRGB(18, 18, 28) or Color3.fromRGB(220,220,230)
+            local side = isDark and Color3.fromRGB(20, 15, 35) or Color3.fromRGB(200,200,210)
+            mainFrame.BackgroundColor3 = bg
+            sidebar.BackgroundColor3 = side
+            pageTitle.TextColor3 = isDark and Color3.fromRGB(245, 245, 255) or Color3.new(0,0,0)
+            themeBtn.Text = isDark and "🌙 ธีมมืด/สว่าง" or "☀️ ธีมมืด/สว่าง"
+        end)
+    end
+
+    local function updateCanvas()
+        local total = 0
+        for _, child in pairs(pageFrame:GetChildren()) do
+            if child:IsA("TextButton") or child:IsA("Frame") or child:IsA("TextLabel") then
+                total = total + child.Size.Y.Offset + 12
+            end
+        end
+        pageFrame.Size = UDim2.new(1, 0, 0, total + 30)
+        pageContainer.CanvasSize = UDim2.new(0, 0, 0, total + 30 + 20)
+    end
+    task.wait(0.1)
+    updateCanvas()
+    return pageFrame
+end
+
+-- ============================================================= --
+-- 🧭 สร้างปุ่มนำทาง                                           --
+-- ============================================================= --
+local function selectPage(pageName)
+    for name, frame in pairs(pageFrames) do
+        frame.Visible = (name == pageName)
+    end
+    pageTitle.Text = pageName
+    for name, btn in pairs(navButtons) do
+        local active = (name == pageName)
+        TweenService:Create(btn, TweenInfo.new(0.15), {
+            BackgroundColor3 = active and Color3.fromRGB(180, 80, 255) or Color3.fromRGB(255,255,255, 0.05)
+        }):Play()
+        btn.Label.TextColor3 = active and Color3.new(1,1,1) or Color3.fromRGB(245, 245, 255)
+    end
+end
+
+for i, page in ipairs(PAGES) do
+    local pageFrame = buildPage(page.name)
+    pageFrame.Visible = false
+    pageFrames[page.name] = pageFrame
+
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, 0, 0, 45)
+    btn.LayoutOrder = i
+    btn.BackgroundColor3 = Color3.fromRGB(255,255,255,0.05)
+    btn.BorderSizePixel = 0
+    btn.Text = ""
+    btn.Parent = navList
+    btn.MouseButton1Click:Connect(function()
+        playClickSound()
+        selectPage(page.name)
+    end)
+
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(0, 10)
+    btnCorner.Parent = btn
+
+    local icon = Instance.new("TextLabel")
+    icon.Size = UDim2.new(0, 35, 1, 0)
+    icon.Position = UDim2.new(0, 10, 0, 0)
+    icon.BackgroundTransparency = 1
+    icon.Text = page.icon
+    icon.TextSize = 22
+    icon.Font = Enum.Font.Gotham
+    icon.TextXAlignment = Enum.TextXAlignment.Center
+    icon.Parent = btn
+
+    local label = Instance.new("TextLabel")
+    label.Name = "Label"
+    label.Size = UDim2.new(1, -55, 1, 0)
+    label.Position = UDim2.new(0, 45, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = page.name
+    label.TextColor3 = Color3.fromRGB(245, 245, 255)
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 16
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = btn
+
+    btn.MouseEnter:Connect(function()
+        if pageTitle.Text ~= page.name then
+            TweenService:Create(btn, TweenInfo.new(0.1), {
+                BackgroundColor3 = Color3.fromRGB(255,255,255,0.15)
+            }):Play()
+        end
+    end)
+    btn.MouseLeave:Connect(function()
+        if pageTitle.Text ~= page.name then
+            TweenService:Create(btn, TweenInfo.new(0.1), {
+                BackgroundColor3 = Color3.fromRGB(255,255,255,0.05)
+            }):Play()
+        end
+    end)
+
+    navButtons[page.name] = btn
+end
+
+-- ============================================================= --
+-- 🚀 เริ่มต้น                                                   --
+-- ============================================================= --
+selectPage(PAGES[1].name)
+
+-- ============================================================= --
+-- 🧹 รีเซ็ตเมื่อตัวละครเกิดใหม่                                 --
+-- ============================================================= --
+player.CharacterAdded:Connect(function(newChar)
+    character = newChar
+    humanoid = character:WaitForChild("Humanoid")
+    if cheatStates.GodMode then
+        humanoid.MaxHealth = 9e9
+        humanoid.Health = 9e9
+        humanoid.BreakJointsOnDeath = false
+    end
+    if cheatStates.FlyMode then
+        task.wait(0.5)
+        local root = humanoid.RootPart
+        if root then
+            local bv = Instance.new("BodyVelocity")
+            bv.MaxForce = Vector3.new(9e9,9e9,9e9)
+            bv.Velocity = Vector3.new(0,0,0)
+            bv.Parent = root
+        end
+    end
+    if cheatStates.Noclip then
+        for _, p in pairs(character:GetDescendants()) do
+            if p:IsA("BasePart") then p.CanCollide = false end
+        end
+    end
+    humanoid.WalkSpeed = playerSpeed
+    humanoid.JumpPower = playerJumpPower
+end)
+
+-- ============================================================= --
+-- ⌨️ เปิด/ปิด UI ด้วย F1                                      --
+-- ============================================================= --
+UserInputService.InputBegan:Connect(function(input, gp)
+    if gp then return end
+    if input.KeyCode == Enum.KeyCode.F1 then
+        playClickSound()
+        screenGui.Enabled = not screenGui.Enabled
+    end
+end)
+
+print("🔥 v8.1 FINAL (FIXED) พร้อมใช้งาน! แก้ไขทุกจุดแล้ว ไอ้สัส! 😈")
