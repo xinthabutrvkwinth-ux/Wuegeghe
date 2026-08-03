@@ -1,0 +1,278 @@
+-- 🥷 UI Sidebar Executor + ปุ่มย่อ/ขยาย โดย Saikuto
+-- ข้อดี: Sidebar Navigation, รันเร็ว 0.05s / รัว 0.1s, หยุด, เซฟ, คัดลอก, ล้าง, ย่อ/ขยาย UI, ลากได้, มุมมน
+-- 🌚 เมื่อกดย่อ UI จะเหลือเพียง sidebar พร้อมปุ่มขยายกลับ, เมื่อกดขยาย UI จะกลับมาเต็ม
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "SaikutoSidebar_MinMax_👾"
+gui.Parent = game.CoreGui
+gui.ResetOnSpawn = false
+
+-- กรอบหลัก 600x400
+local main = Instance.new("Frame")
+main.Size = UDim2.new(0, 600, 0, 400)
+main.Position = UDim2.new(0.5, -300, 0.5, -200)
+main.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+main.BorderSizePixel = 0
+main.Active = true
+main.Draggable = true
+main.Parent = gui
+
+-- มุมมน
+local cornerMain = Instance.new("UICorner")
+cornerMain.CornerRadius = UDim.new(0, 14)
+cornerMain.Parent = main
+
+-- SIDEBAR
+local sidebar = Instance.new("Frame")
+sidebar.Size = UDim2.new(0, 130, 1, 0)
+sidebar.Position = UDim2.new(0, 0, 0, 0)
+sidebar.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+sidebar.BorderSizePixel = 0
+sidebar.Parent = main
+
+-- จัดเรียงปุ่ม
+local listLayout = Instance.new("UIListLayout")
+listLayout.Parent = sidebar
+listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+listLayout.Padding = UDim.new(0, 6)
+
+-- ระยะขอบบน
+local topPadding = Instance.new("UIPadding")
+topPadding.PaddingTop = UDim.new(0, 10)
+topPadding.Parent = sidebar
+
+-- ฟังก์ชันสร้างปุ่ม sidebar
+local function createSideButton(name, text, color, order)
+	local btn = Instance.new("TextButton")
+	btn.Name = name
+	btn.Size = UDim2.new(1, -16, 0, 34)
+	btn.BackgroundColor3 = color or Color3.fromRGB(60, 60, 60)
+	btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	btn.Font = Enum.Font.SourceSansBold
+	btn.TextSize = 13
+	btn.Text = text
+	btn.BorderSizePixel = 0
+	btn.LayoutOrder = order
+	btn.Parent = sidebar
+	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 7)
+	return btn
+end
+
+-- ปุ่มควบคุม
+local btnRunFast = createSideButton("RunFast", "Run ⚡0.05s", Color3.fromRGB(34, 139, 34), 1)
+local btnRapid   = createSideButton("Rapid", "Rapid 🔄0.1s", Color3.fromRGB(255, 140, 0), 2)
+local btnStop    = createSideButton("Stop", "Stop ❤️‍🩹", Color3.fromRGB(178, 34, 34), 3)
+local btnSave    = createSideButton("Save", "Save 💾", Color3.fromRGB(70, 130, 180), 4)
+local btnCopy    = createSideButton("Copy", "Copy 👾", Color3.fromRGB(100, 149, 237), 5)
+local btnClear   = createSideButton("Clear", "Clear 🧹", Color3.fromRGB(184, 134, 11), 6)
+-- ปุ่มย่อ/ขยาย
+local btnMinimize = createSideButton("Minimize", "Minimize 👇", Color3.fromRGB(100, 100, 100), 7)
+local btnMaximize = createSideButton("Maximize", "Maximize 👆", Color3.fromRGB(100, 100, 100), 8)
+-- เริ่มต้นซ่อนปุ่มขยาย เพราะยังไม่ย่อ
+btnMaximize.Visible = false
+
+-- พื้นที่ EDITOR (ขวา)
+local editorFrame = Instance.new("Frame")
+editorFrame.Size = UDim2.new(1, -130, 1, 0)
+editorFrame.Position = UDim2.new(0, 130, 0, 0)
+editorFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+editorFrame.BorderSizePixel = 0
+editorFrame.Parent = main
+
+-- กล่องข้อความหลายบรรทัด
+local scriptBox = Instance.new("TextBox")
+scriptBox.Size = UDim2.new(1, -20, 1, -50)
+scriptBox.Position = UDim2.new(0, 10, 0, 5)
+scriptBox.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+scriptBox.TextColor3 = Color3.fromRGB(0, 255, 100)
+scriptBox.Font = Enum.Font.Code
+scriptBox.TextSize = 14
+scriptBox.ClearTextOnFocus = false
+scriptBox.MultiLine = true
+scriptBox.Text = "-- 👽 วางสคริปต์ที่นี่..."
+scriptBox.Parent = editorFrame
+Instance.new("UICorner", scriptBox).CornerRadius = UDim.new(0, 8)
+
+-- แถบสถานะ
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size = UDim2.new(1, 0, 0, 20)
+statusLabel.Position = UDim2.new(0, 0, 1, -25)
+statusLabel.BackgroundTransparency = 1
+statusLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
+statusLabel.Font = Enum.Font.SourceSans
+statusLabel.TextSize = 12
+statusLabel.Text = ""
+statusLabel.Parent = editorFrame
+
+-- ตรรกะควบคุมลูป
+local isLooping = false
+local loopThread = nil
+
+local function stopCurrentLoop()
+	if isLooping then
+		isLooping = false
+		if loopThread then
+			task.cancel(loopThread)
+			loopThread = nil
+		end
+		statusLabel.Text = "⏹️ หยุดลูปก่อนหน้า"
+		task.wait(0.5)
+	end
+end
+
+local function execute()
+	local code = scriptBox.Text
+	local f, err = loadstring(code)
+	if not f then
+		warn("❄️ Syntax Error: " .. tostring(err))
+		return
+	end
+	local ok, runErr = pcall(f)
+	if not ok then
+		warn("🕷️ Runtime Error: " .. tostring(runErr))
+	end
+end
+
+btnRunFast.MouseButton1Click:Connect(function()
+	stopCurrentLoop()
+	isLooping = true
+	loopThread = task.spawn(function()
+		while isLooping do
+			execute()
+			task.wait(0.05)
+		end
+	end)
+	statusLabel.Text = "▶️ รันทุก 0.05s ..."
+end)
+
+btnRapid.MouseButton1Click:Connect(function()
+	stopCurrentLoop()
+	isLooping = true
+	loopThread = task.spawn(function()
+		while isLooping do
+			execute()
+			task.wait(0.1)
+		end
+	end)
+	statusLabel.Text = "🔄 รันทุก 0.1s (รัว) ..."
+end)
+
+btnStop.MouseButton1Click:Connect(function()
+	isLooping = false
+	if loopThread then
+		task.cancel(loopThread)
+		loopThread = nil
+	end
+	statusLabel.Text = "⏹️ หยุดแล้ว"
+	task.wait(1.5)
+	statusLabel.Text = ""
+end)
+
+btnSave.MouseButton1Click:Connect(function()
+	local content = scriptBox.Text
+	if content == "" then
+		statusLabel.Text = "⚠️ ไม่มีข้อความให้บันทึก"
+		task.wait(2)
+		statusLabel.Text = ""
+		return
+	end
+	local ok, err = pcall(function()
+		writefile("SaikutoScript_" .. os.time() .. ".lua", content)
+	end)
+	if ok then
+		statusLabel.Text = "💾 บันทึกสำเร็จ (SaikutoScript_" .. os.time() .. ".lua)"
+	else
+		statusLabel.Text = "❌ บันทึกไม่สำเร็จ: " .. tostring(err)
+	end
+	task.wait(3)
+	statusLabel.Text = ""
+end)
+
+btnCopy.MouseButton1Click:Connect(function()
+	local txt = scriptBox.Text
+	if txt == "" then
+		statusLabel.Text = "📋 ไม่มีอะไรให้คัดลอก"
+		task.wait(2)
+		statusLabel.Text = ""
+		return
+	end
+	local ok, err = pcall(setclipboard, txt)
+	if ok then
+		statusLabel.Text = "✅ คัดลอกไปยังคลิปบอร์ดแล้ว"
+	else
+		pcall(writefile, "clipboard_fallback.txt", txt)
+		statusLabel.Text = "📁 setclipboard ไม่พร้อม เขียนลงไฟล์แทน"
+	end
+	task.wait(2)
+	statusLabel.Text = ""
+end)
+
+btnClear.MouseButton1Click:Connect(function()
+	scriptBox.Text = ""
+	statusLabel.Text = "🧹 ล้างข้อความเรียบร้อย"
+	task.wait(1.5)
+	statusLabel.Text = ""
+end)
+
+-- ปุ่มปิด UI
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.new(0, 30, 0, 30)
+closeBtn.Position = UDim2.new(1, -6, 0, 6)
+closeBtn.AnchorPoint = Vector2.new(1, 0)
+closeBtn.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeBtn.Text = "X"
+closeBtn.Font = Enum.Font.SourceSansBold
+closeBtn.TextSize = 16
+closeBtn.Parent = main
+closeBtn.MouseButton1Click:Connect(function()
+	gui:Destroy()
+end)
+
+-- ฟังก์ชันย่อ/ขยาย --------------------------------------------
+local fullSize = UDim2.new(0, 600, 0, 400)       -- ขนาดเต็ม
+local miniSize = UDim2.new(0, 130, 0, 36)        -- ขนาดย่อ (แค่ sidebar, ซ่อนอย่างอื่น)
+local isMinimized = false
+
+-- ฟังก์ชันย่อ: ซ่อน editor, ปรับขนาด, ปรับตำแหน่ง, แสดงปุ่มขยาย, ซ่อนปุ่มอื่น
+local function minimizeUI()
+	isMinimized = true
+	-- เปลี่ยนขนาด main
+	main.Size = miniSize
+	-- ตำแหน่งอาจเลื่อนขึ้น เพื่อให้เห็นแค่แถบเล็กๆ กลางจอ? ใช้ anchor point เดิมได้
+	main.Position = UDim2.new(0.5, -65, 0.5, -18)  -- กึ่งกลางใหม่
+	-- ซ่อน element ทั้งหมดที่ไม่ใช่ sidebar+closeBtn? เราจะซ่อน editor, ปุ่มต่างๆ ใน sidebar ยกเว้นปุ่ม maximize
+	editorFrame.Visible = false
+	btnRunFast.Visible = false
+	btnRapid.Visible = false
+	btnStop.Visible = false
+	btnSave.Visible = false
+	btnCopy.Visible = false
+	btnClear.Visible = false
+	btnMinimize.Visible = false
+	btnMaximize.Visible = true
+	closeBtn.Visible = false
+	-- sidebar ยังมองเห็น, ขนาด sidebar จะปรับตาม main? sidebar.Size = UDim2.new(0, 130, 1, 0) ซึ่งตอนนี้ main สูง 36px sidebar จะสูงตาม
+	sidebar.Size = UDim2.new(0, 130, 1, 0) -- ไม่ต้องเปลี่ยน
+end
+
+-- ฟังก์ชันขยายกลับ
+local function maximizeUI()
+	isMinimized = false
+	main.Size = fullSize
+	main.Position = UDim2.new(0.5, -300, 0.5, -200)
+	editorFrame.Visible = true
+	btnRunFast.Visible = true
+	btnRapid.Visible = true
+	btnStop.Visible = true
+	btnSave.Visible = true
+	btnCopy.Visible = true
+	btnClear.Visible = true
+	btnMinimize.Visible = true
+	btnMaximize.Visible = false
+	closeBtn.Visible = true
+end
+
+btnMinimize.MouseButton1Click:Connect(minimizeUI)
+btnMaximize.MouseButton1Click:Connect(maximizeUI)
