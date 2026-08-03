@@ -1,0 +1,431 @@
+-- ===================================================== --
+-- 🕷️ COCO Hop :: Ultimate Speed & Jump Engine v.666     --
+-- ลิขสิทธิ์ Saikuto 😈  ห้ามขโมยไปขายถ้าไม่อยากโดนแบน --
+-- ===================================================== --
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local StarterGui = game:GetService("StarterGui")
+
+-- 🔨 ตัวแปรหลักของมึง (ปรับเป็นเท่าไหร่ก็ได้ โลกไม่แตก)
+local CONFIG = {
+    Speed = 250,          -- ความเร็วเดิน/วิ่ง (ค่าเริ่มต้น 250 แรงอยู่แล้ว)
+    JumpPower = 500,      -- พลังกระโดด (500 คือพุ่งทะลุเมฆ)
+    MaxSpeed = 10000,     -- ขีดจำกัดบนของสไลด์ (ตั้งไว้เผื่อมึงบ้า)
+    MaxJump = 10000       -- ขีดจำกัดบนของพลังกระโดด
+}
+
+-- 👾 ตัวแปรควบคุมสถานะ
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+
+-- ❄️ ฟังก์ชันอัปเดตค่าลง Humanoid (โหดไม่มียั้ง)
+local function applyStats(speed, jump)
+    if not humanoid or not humanoid.Parent then return end
+    humanoid.WalkSpeed = speed
+    humanoid.JumpPower = jump
+    -- ป้องกันการรีเซ็ตจากเกม (override ทุกเฟรม)
+end
+
+-- ใช้ RunService เพื่อล็อคค่าทุกเฟรม เผื่อเกมไปเซ็ตทับ (โคตรกาว)
+local heartBeatConn
+heartBeatConn = RunService.Heartbeat:Connect(function()
+    if humanoid and humanoid.Parent then
+        humanoid.WalkSpeed = CONFIG.Speed
+        humanoid.JumpPower = CONFIG.JumpPower
+    else
+        -- รอตัวละครเกิดใหม่ถ้าตาย
+        character = player.Character or player.CharacterAdded:Wait()
+        humanoid = character:WaitForChild("Humanoid")
+    end
+end)
+
+-- =============================================== --
+-- 🥷  PART UI : สร้างหน้าต่างลากได้ ขอบม่วงดำ      --
+-- =============================================== --
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "CocoHopUI"
+screenGui.ResetOnSpawn = false  -- ไม่หายตอนตาย ไอ้กาก
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+-- 👽 เฟรมหลัก (ดำสนิท ขอบม่วงสด)
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 360, 0, 380)
+mainFrame.Position = UDim2.new(0.5, -180, 0.5, -190)  -- อยู่กลางจอเริ่มต้น
+mainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+mainFrame.BackgroundTransparency = 0.0
+mainFrame.BorderColor3 = Color3.fromRGB(180, 0, 255)   -- ม่วงจัด
+mainFrame.BorderSizePixel = 3
+mainFrame.ClipsDescendants = true
+mainFrame.Active = true
+mainFrame.Draggable = true  -- ลากได้เลย ไอ้เวร
+mainFrame.Parent = screenGui
+
+-- 🦠 หัวข้อ "COCO Hop" แบบเท่
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Name = "Title"
+titleLabel.Size = UDim2.new(1, 0, 0, 40)
+titleLabel.Position = UDim2.new(0, 0, 0, 0)
+titleLabel.BackgroundColor3 = Color3.fromRGB(30, 0, 50)
+titleLabel.BackgroundTransparency = 0.2
+titleLabel.BorderColor3 = Color3.fromRGB(180, 0, 255)
+titleLabel.BorderSizePixel = 1
+titleLabel.Text = "🔥 COCO Hop 🔥"
+titleLabel.TextColor3 = Color3.fromRGB(255, 0, 255)
+titleLabel.TextScaled = true
+titleLabel.Font = Enum.Font.SourceSansBold
+titleLabel.TextXAlignment = Enum.TextXAlignment.Center
+titleLabel.Parent = mainFrame
+
+-- เส้นคั่นกากๆ
+local separator = Instance.new("Frame")
+separator.Size = UDim2.new(0.9, 0, 0, 2)
+separator.Position = UDim2.new(0.05, 0, 0.105, 0)
+separator.BackgroundColor3 = Color3.fromRGB(180, 0, 255)
+separator.BorderSizePixel = 0
+separator.Parent = mainFrame
+
+-- =============================================== --
+--  🔨 SLIDER : ความเร็ว (WalkSpeed)              --
+-- =============================================== --
+
+local speedLabel = Instance.new("TextLabel")
+speedLabel.Size = UDim2.new(0.4, 0, 0, 25)
+speedLabel.Position = UDim2.new(0.05, 0, 0.15, 0)
+speedLabel.BackgroundTransparency = 1
+speedLabel.Text = "⚡ ความเร็ว:"
+speedLabel.TextColor3 = Color3.fromRGB(200, 200, 255)
+speedLabel.TextScaled = true
+speedLabel.Font = Enum.Font.SourceSansBold
+speedLabel.TextXAlignment = Enum.TextXAlignment.Left
+speedLabel.Parent = mainFrame
+
+local speedValueLabel = Instance.new("TextLabel")
+speedValueLabel.Size = UDim2.new(0.2, 0, 0, 25)
+speedValueLabel.Position = UDim2.new(0.75, 0, 0.15, 0)
+speedValueLabel.BackgroundTransparency = 1
+speedValueLabel.Text = tostring(CONFIG.Speed)
+speedValueLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
+speedValueLabel.TextScaled = true
+speedValueLabel.Font = Enum.Font.SourceSansBold
+speedValueLabel.TextXAlignment = Enum.TextXAlignment.Right
+speedValueLabel.Parent = mainFrame
+
+local speedSlider = Instance.new("Frame")
+speedSlider.Size = UDim2.new(0.85, 0, 0, 8)
+speedSlider.Position = UDim2.new(0.075, 0, 0.215, 0)
+speedSlider.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+speedSlider.BorderSizePixel = 1
+speedSlider.BorderColor3 = Color3.fromRGB(180, 0, 255)
+speedSlider.Parent = mainFrame
+
+local speedFill = Instance.new("Frame")
+speedFill.Size = UDim2.new(CONFIG.Speed / CONFIG.MaxSpeed, 0, 1, 0)
+speedFill.Position = UDim2.new(0, 0, 0, 0)
+speedFill.BackgroundColor3 = Color3.fromRGB(180, 0, 255)
+speedFill.BorderSizePixel = 0
+speedFill.Parent = speedSlider
+
+-- ปุ่มบวกลบความเร็ว (ละเอียด)
+local speedMinus = Instance.new("TextButton")
+speedMinus.Size = UDim2.new(0.08, 0, 0, 20)
+speedMinus.Position = UDim2.new(0.01, 0, 0.24, 0)
+speedMinus.BackgroundColor3 = Color3.fromRGB(80, 0, 120)
+speedMinus.BorderColor3 = Color3.fromRGB(180, 0, 255)
+speedMinus.Text = "-"
+speedMinus.TextColor3 = Color3.fromRGB(255, 255, 255)
+speedMinus.TextScaled = true
+speedMinus.Font = Enum.Font.SourceSansBold
+speedMinus.Parent = mainFrame
+
+local speedPlus = Instance.new("TextButton")
+speedPlus.Size = UDim2.new(0.08, 0, 0, 20)
+speedPlus.Position = UDim2.new(0.91, 0, 0.24, 0)
+speedPlus.BackgroundColor3 = Color3.fromRGB(80, 0, 120)
+speedPlus.BorderColor3 = Color3.fromRGB(180, 0, 255)
+speedPlus.Text = "+"
+speedPlus.TextColor3 = Color3.fromRGB(255, 255, 255)
+speedPlus.TextScaled = true
+speedPlus.Font = Enum.Font.SourceSansBold
+speedPlus.Parent = mainFrame
+
+-- =============================================== --
+--  🕷️ SLIDER : พลังกระโดด (JumpPower)            --
+-- =============================================== --
+
+local jumpLabel = Instance.new("TextLabel")
+jumpLabel.Size = UDim2.new(0.4, 0, 0, 25)
+jumpLabel.Position = UDim2.new(0.05, 0, 0.35, 0)
+jumpLabel.BackgroundTransparency = 1
+jumpLabel.Text = "🚀 กระโดด:"
+jumpLabel.TextColor3 = Color3.fromRGB(200, 200, 255)
+jumpLabel.TextScaled = true
+jumpLabel.Font = Enum.Font.SourceSansBold
+jumpLabel.TextXAlignment = Enum.TextXAlignment.Left
+jumpLabel.Parent = mainFrame
+
+local jumpValueLabel = Instance.new("TextLabel")
+jumpValueLabel.Size = UDim2.new(0.2, 0, 0, 25)
+jumpValueLabel.Position = UDim2.new(0.75, 0, 0.35, 0)
+jumpValueLabel.BackgroundTransparency = 1
+jumpValueLabel.Text = tostring(CONFIG.JumpPower)
+jumpValueLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
+jumpValueLabel.TextScaled = true
+jumpValueLabel.Font = Enum.Font.SourceSansBold
+jumpValueLabel.TextXAlignment = Enum.TextXAlignment.Right
+jumpValueLabel.Parent = mainFrame
+
+local jumpSlider = Instance.new("Frame")
+jumpSlider.Size = UDim2.new(0.85, 0, 0, 8)
+jumpSlider.Position = UDim2.new(0.075, 0, 0.415, 0)
+jumpSlider.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+jumpSlider.BorderSizePixel = 1
+jumpSlider.BorderColor3 = Color3.fromRGB(180, 0, 255)
+jumpSlider.Parent = mainFrame
+
+local jumpFill = Instance.new("Frame")
+jumpFill.Size = UDim2.new(CONFIG.JumpPower / CONFIG.MaxJump, 0, 1, 0)
+jumpFill.Position = UDim2.new(0, 0, 0, 0)
+jumpFill.BackgroundColor3 = Color3.fromRGB(255, 0, 128)
+jumpFill.BorderSizePixel = 0
+jumpFill.Parent = jumpSlider
+
+local jumpMinus = Instance.new("TextButton")
+jumpMinus.Size = UDim2.new(0.08, 0, 0, 20)
+jumpMinus.Position = UDim2.new(0.01, 0, 0.44, 0)
+jumpMinus.BackgroundColor3 = Color3.fromRGB(80, 0, 120)
+jumpMinus.BorderColor3 = Color3.fromRGB(180, 0, 255)
+jumpMinus.Text = "-"
+jumpMinus.TextColor3 = Color3.fromRGB(255, 255, 255)
+jumpMinus.TextScaled = true
+jumpMinus.Font = Enum.Font.SourceSansBold
+jumpMinus.Parent = mainFrame
+
+local jumpPlus = Instance.new("TextButton")
+jumpPlus.Size = UDim2.new(0.08, 0, 0, 20)
+jumpPlus.Position = UDim2.new(0.91, 0, 0.44, 0)
+jumpPlus.BackgroundColor3 = Color3.fromRGB(80, 0, 120)
+jumpPlus.BorderColor3 = Color3.fromRGB(180, 0, 255)
+jumpPlus.Text = "+"
+jumpPlus.TextColor3 = Color3.fromRGB(255, 255, 255)
+jumpPlus.TextScaled = true
+jumpPlus.Font = Enum.Font.SourceSansBold
+jumpPlus.Parent = mainFrame
+
+-- =============================================== --
+--  ❄️ ฟังก์ชันอัปเดต UI และค่าตัวเลข             --
+-- =============================================== --
+
+local function updateUI()
+    speedValueLabel.Text = tostring(math.floor(CONFIG.Speed))
+    jumpValueLabel.Text = tostring(math.floor(CONFIG.JumpPower))
+    speedFill.Size = UDim2.new(math.clamp(CONFIG.Speed / CONFIG.MaxSpeed, 0, 1), 0, 1, 0)
+    jumpFill.Size = UDim2.new(math.clamp(CONFIG.JumpPower / CONFIG.MaxJump, 0, 1), 0, 1, 0)
+    applyStats(CONFIG.Speed, CONFIG.JumpPower)
+end
+
+-- ฟังก์ชันปรับค่าแบบ step
+local function changeSpeed(delta)
+    local newVal = CONFIG.Speed + delta
+    if newVal < 1 then newVal = 1 end
+    if newVal > CONFIG.MaxSpeed then newVal = CONFIG.MaxSpeed end
+    CONFIG.Speed = newVal
+    updateUI()
+end
+
+local function changeJump(delta)
+    local newVal = CONFIG.JumpPower + delta
+    if newVal < 1 then newVal = 1 end
+    if newVal > CONFIG.MaxJump then newVal = CONFIG.MaxJump end
+    CONFIG.JumpPower = newVal
+    updateUI()
+end
+
+-- =============================================== --
+--  🎯 อีเวนต์คลิกปุ่ม + / -                      --
+-- =============================================== --
+
+speedMinus.MouseButton1Click:Connect(function() changeSpeed(-10) end)
+speedPlus.MouseButton1Click:Connect(function() changeSpeed(10) end)
+jumpMinus.MouseButton1Click:Connect(function() changeJump(-10) end)
+jumpPlus.MouseButton1Click:Connect(function() changeJump(10) end)
+
+-- =============================================== --
+--  🖱️ ลากสไลด์ด้วยเมาส์ (ละเอียดยิ่งกว่า)        --
+-- =============================================== --
+
+local function setupDraggableSlider(sliderFrame, fillFrame, valueType)
+    local isDragging = false
+    local function onInputBegan(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            isDragging = true
+        end
+    end
+    local function onInputEnded(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            isDragging = false
+        end
+    end
+    local function onInputChanged(input)
+        if not isDragging then return end
+        if input.UserInputType ~= Enum.UserInputType.MouseMovement then return end
+        
+        local absPos = sliderFrame.AbsolutePosition
+        local absSize = sliderFrame.AbsoluteSize.X
+        local mouseX = input.Position.X
+        local relativeX = math.clamp((mouseX - absPos.X) / absSize, 0, 1)
+        
+        if valueType == "speed" then
+            local newSpeed = math.floor(relativeX * CONFIG.MaxSpeed)
+            if newSpeed < 1 then newSpeed = 1 end
+            CONFIG.Speed = newSpeed
+        elseif valueType == "jump" then
+            local newJump = math.floor(relativeX * CONFIG.MaxJump)
+            if newJump < 1 then newJump = 1 end
+            CONFIG.JumpPower = newJump
+        end
+        updateUI()
+    end
+    
+    sliderFrame.InputBegan:Connect(onInputBegan)
+    sliderFrame.InputEnded:Connect(onInputEnded)
+    sliderFrame.InputChanged:Connect(onInputChanged)
+    -- ต่อกับพื้นหลังเพื่อให้ลากได้ทั้งแถบ
+    local bg = sliderFrame.Parent:FindFirstChildWhichIsA("Frame")
+    if bg then
+        bg.InputBegan:Connect(onInputBegan)
+        bg.InputEnded:Connect(onInputEnded)
+        bg.InputChanged:Connect(onInputChanged)
+    end
+end
+
+setupDraggableSlider(speedSlider, speedFill, "speed")
+setupDraggableSlider(jumpSlider, jumpFill, "jump")
+
+-- =============================================== --
+--  💀 ปุ่มรีเซ็ตค่า default (คืนสู่ 250/500)     --
+-- =============================================== --
+
+local resetBtn = Instance.new("TextButton")
+resetBtn.Size = UDim2.new(0.35, 0, 0, 30)
+resetBtn.Position = UDim2.new(0.05, 0, 0.55, 0)
+resetBtn.BackgroundColor3 = Color3.fromRGB(100, 0, 150)
+resetBtn.BorderColor3 = Color3.fromRGB(180, 0, 255)
+resetBtn.Text = "🔄 RESET"
+resetBtn.TextColor3 = Color3.fromRGB(255, 200, 255)
+resetBtn.TextScaled = true
+resetBtn.Font = Enum.Font.SourceSansBold
+resetBtn.Parent = mainFrame
+
+resetBtn.MouseButton1Click:Connect(function()
+    CONFIG.Speed = 250
+    CONFIG.JumpPower = 500
+    updateUI()
+    -- สั่น UI เล็กน้อย (เอฟเฟกต์กากๆ)
+    local tween = TweenService:Create(mainFrame, TweenInfo.new(0.1), {Position = UDim2.new(0.5, -180 + 5, 0.5, -190)})
+    tween:Play()
+    task.wait(0.1)
+    local tween2 = TweenService:Create(mainFrame, TweenInfo.new(0.1), {Position = UDim2.new(0.5, -180, 0.5, -190)})
+    tween2:Play()
+end)
+
+-- =============================================== --
+--  😈 ปุ่มปิด/เปิด UI (Toggle)                   --
+-- =============================================== --
+
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Size = UDim2.new(0.35, 0, 0, 30)
+toggleBtn.Position = UDim2.new(0.55, 0, 0.55, 0)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(100, 0, 150)
+toggleBtn.BorderColor3 = Color3.fromRGB(180, 0, 255)
+toggleBtn.Text = "👁️ ซ่อน"
+toggleBtn.TextColor3 = Color3.fromRGB(255, 200, 255)
+toggleBtn.TextScaled = true
+toggleBtn.Font = Enum.Font.SourceSansBold
+toggleBtn.Parent = mainFrame
+
+local uiVisible = true
+toggleBtn.MouseButton1Click:Connect(function()
+    uiVisible = not uiVisible
+    mainFrame.Visible = uiVisible
+    toggleBtn.Text = uiVisible and "👁️ ซ่อน" or "👁️ แสดง"
+end)
+
+-- =============================================== --
+--  🦠 ปุ่มปิดเกม (ออกจากเซิร์ฟเวอร์)  หมั่นไส้     --
+-- =============================================== --
+
+local exitBtn = Instance.new("TextButton")
+exitBtn.Size = UDim2.new(0.9, 0, 0, 30)
+exitBtn.Position = UDim2.new(0.05, 0, 0.72, 0)
+exitBtn.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
+exitBtn.BorderColor3 = Color3.fromRGB(255, 0, 0)
+exitBtn.Text = "💀 กระโดดออกเกม (กาก)"
+exitBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+exitBtn.TextScaled = true
+exitBtn.Font = Enum.Font.SourceSansBold
+exitBtn.Parent = mainFrame
+
+exitBtn.MouseButton1Click:Connect(function()
+    -- กระโดดสูงสุดก่อนออก (เล่นมุก)
+    CONFIG.JumpPower = 5000
+    updateUI()
+    task.wait(0.3)
+    player:Kick("มึงบินออกไปแล้วววว 😈")
+end)
+
+-- =============================================== --
+--  🎨 สร้างปุ่มลัดเปิด/ปิดด้วยคีย์บอร์ด (F1)    --
+-- =============================================== --
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.F1 then
+        uiVisible = not uiVisible
+        mainFrame.Visible = uiVisible
+        toggleBtn.Text = uiVisible and "👁️ ซ่อน" or "👁️ แสดง"
+    end
+    -- กด F2 เพื่อรีเซ็ตเร็ว
+    if input.KeyCode == Enum.KeyCode.F2 then
+        CONFIG.Speed = 250
+        CONFIG.JumpPower = 500
+        updateUI()
+    end
+end)
+
+-- =============================================== --
+--  🧹 ทำความสะอาดเมื่อตัวละครเปลี่ยน              --
+-- =============================================== --
+
+player.CharacterAdded:Connect(function(newChar)
+    character = newChar
+    humanoid = character:WaitForChild("Humanoid")
+    -- รอสักครู่ให้ Humanoid พร้อม แล้วอัปเดตค่าทันที
+    task.wait(0.5)
+    applyStats(CONFIG.Speed, CONFIG.JumpPower)
+end)
+
+-- =============================================== --
+--  📢 โชว์ข้อความต้อนรับในแชท (แห่ก)            --
+-- =============================================== --
+
+local chatService = game:GetService("Chat")
+if chatService and chatService:FindFirstChild("Chat") then
+    local msg = "🔥 COCO Hop เปิดใช้งานแล้ว! ปรับสปีดและกระโดดได้ที่ UI (F1 ซ่อน/แสดง) 😈"
+    chatService.Chat:DisplaySystemMessage(msg)
+end
+
+-- =============================================== --
+--  ☠️  ฟังก์ชันป้องกันการโดนแบน (แค่เตือน)        --
+-- =============================================== --
+
+-- ไม่ต้องกลัวไอ้สัส แอดมินแม่งก็โดนกระโดดทับตาย
+print("👽 Saikuto Says : COCO Hop Loaded Successfully. Enjoy your flight, motherfucker.")
+
+-- สุดท้าย อัปเดต UI ครั้งแรก
+updateUI()
