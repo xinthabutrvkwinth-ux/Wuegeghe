@@ -1,0 +1,276 @@
+[[
+    Sidebar Navigation UI
+    เธงเธดเธเธตเนเธเน: เธงเธฒเธ LocalScript เธเธตเนเนเธงเนเนเธ StarterGui
+    (เธชเธฃเนเธฒเธ LocalScript เนเธซเธกเนเนเธ StarterGui เนเธฅเนเธงเธงเธฒเธเนเธเนเธ”เธเธตเนเธ—เธฑเธ)
+--]]
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+------------------------------------------------------------
+-- CONFIG: เนเธเนเธ•เธฃเธเธเธตเนเน€เธเธทเนเธญเน€เธเธดเนเธก/เธฅเธ”เธซเธเนเธฒเน€เธกเธเธน
+------------------------------------------------------------
+local PAGES = {
+    { name = "Home",       icon = "๐ " },
+    { name = "Inventory",  icon = "๐’" },
+    { name = "Shop",       icon = "๐’" },
+    { name = "Leaderboard",icon = "๐" },
+    { name = "Settings",   icon = "โ๏ธ" },
+}
+
+local SIDEBAR_WIDTH = 220
+local COLLAPSED_WIDTH = 60
+local ACCENT_COLOR = Color3.fromRGB(88, 101, 242)
+local BG_COLOR = Color3.fromRGB(24, 24, 28)
+local SIDEBAR_COLOR = Color3.fromRGB(32, 32, 38)
+local TEXT_COLOR = Color3.fromRGB(235, 235, 240)
+
+------------------------------------------------------------
+-- ROOT GUI
+------------------------------------------------------------
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "SidebarNavigationUI"
+screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.Parent = playerGui
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "Main"
+mainFrame.Size = UDim2.new(0.7, 0, 0.7, 0)
+mainFrame.Position = UDim2.new(0.15, 0, 0.15, 0)
+mainFrame.BackgroundColor3 = BG_COLOR
+mainFrame.BorderSizePixel = 0
+mainFrame.Parent = screenGui
+
+local mainCorner = Instance.new("UICorner")
+mainCorner.CornerRadius = UDim.new(0, 12)
+mainCorner.Parent = mainFrame
+
+------------------------------------------------------------
+-- SIDEBAR
+------------------------------------------------------------
+local sidebar = Instance.new("Frame")
+sidebar.Name = "Sidebar"
+sidebar.Size = UDim2.new(0, SIDEBAR_WIDTH, 1, 0)
+sidebar.Position = UDim2.new(0, 0, 0, 0)
+sidebar.BackgroundColor3 = SIDEBAR_COLOR
+sidebar.BorderSizePixel = 0
+sidebar.Parent = mainFrame
+
+local sidebarCorner = Instance.new("UICorner")
+sidebarCorner.CornerRadius = UDim.new(0, 12)
+sidebarCorner.Parent = sidebar
+
+-- เธเธดเธ”เธกเธธเธกเนเธเนเธเธ”เนเธฒเธเธเธงเธฒเธเธญเธ sidebar เนเธกเนเนเธซเนเน€เธงเนเธฒเน€เธเนเธฒเน€เธเธทเนเธญเธซเธฒ
+local sidebarFix = Instance.new("Frame")
+sidebarFix.Size = UDim2.new(0, 12, 1, 0)
+sidebarFix.Position = UDim2.new(1, -12, 0, 0)
+sidebarFix.BackgroundColor3 = SIDEBAR_COLOR
+sidebarFix.BorderSizePixel = 0
+sidebarFix.ZIndex = 0
+sidebarFix.Parent = sidebar
+
+-- Logo / Title
+local logoLabel = Instance.new("TextLabel")
+logoLabel.Name = "Logo"
+logoLabel.Size = UDim2.new(1, -20, 0, 50)
+logoLabel.Position = UDim2.new(0, 15, 0, 10)
+logoLabel.BackgroundTransparency = 1
+logoLabel.Text = "MY GAME"
+logoLabel.TextColor3 = TEXT_COLOR
+logoLabel.Font = Enum.Font.GothamBold
+logoLabel.TextSize = 20
+logoLabel.TextXAlignment = Enum.TextXAlignment.Left
+logoLabel.Parent = sidebar
+
+-- Toggle button (เธขเนเธญ/เธเธขเธฒเธข sidebar)
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Name = "ToggleButton"
+toggleBtn.Size = UDim2.new(0, 30, 0, 30)
+toggleBtn.Position = UDim2.new(1, -40, 0, 15)
+toggleBtn.BackgroundColor3 = ACCENT_COLOR
+toggleBtn.Text = "โฐ"
+toggleBtn.TextColor3 = Color3.new(1, 1, 1)
+toggleBtn.Font = Enum.Font.GothamBold
+toggleBtn.TextSize = 16
+toggleBtn.Parent = sidebar
+
+local toggleCorner = Instance.new("UICorner")
+toggleCorner.CornerRadius = UDim.new(0, 6)
+toggleCorner.Parent = toggleBtn
+
+-- Nav item container
+local navList = Instance.new("Frame")
+navList.Name = "NavList"
+navList.Size = UDim2.new(1, -20, 1, -80)
+navList.Position = UDim2.new(0, 10, 0, 70)
+navList.BackgroundTransparency = 1
+navList.Parent = sidebar
+
+local navLayout = Instance.new("UIListLayout")
+navLayout.Padding = UDim.new(0, 6)
+navLayout.SortOrder = Enum.SortOrder.LayoutOrder
+navLayout.Parent = navList
+
+------------------------------------------------------------
+-- CONTENT AREA
+------------------------------------------------------------
+local content = Instance.new("Frame")
+content.Name = "Content"
+content.Size = UDim2.new(1, -SIDEBAR_WIDTH, 1, 0)
+content.Position = UDim2.new(0, SIDEBAR_WIDTH, 0, 0)
+content.BackgroundTransparency = 1
+content.Parent = mainFrame
+
+local contentTitle = Instance.new("TextLabel")
+contentTitle.Name = "PageTitle"
+contentTitle.Size = UDim2.new(1, -40, 0, 50)
+contentTitle.Position = UDim2.new(0, 20, 0, 10)
+contentTitle.BackgroundTransparency = 1
+contentTitle.Text = "Home"
+contentTitle.TextColor3 = TEXT_COLOR
+contentTitle.Font = Enum.Font.GothamBold
+contentTitle.TextSize = 26
+contentTitle.TextXAlignment = Enum.TextXAlignment.Left
+contentTitle.Parent = content
+
+-- เน€เธเนเธเน€เธเธฃเธกเธเธญเธเนเธ•เนเธฅเธฐเธซเธเนเธฒเนเธงเนเธ—เธตเนเธเธตเน (เนเธซเนเธ•เนเธญ UI เธเธฃเธดเธเธเธญเธเนเธ•เนเธฅเธฐเธซเธเนเธฒเน€เธเนเธฒเธเธฑเธ pageFrames[name])
+local pageContainer = Instance.new("Frame")
+pageContainer.Name = "PageContainer"
+pageContainer.Size = UDim2.new(1, -40, 1, -80)
+pageContainer.Position = UDim2.new(0, 20, 0, 70)
+pageContainer.BackgroundTransparency = 1
+pageContainer.Parent = content
+
+local pageFrames = {}
+
+for _, page in ipairs(PAGES) do
+    local pageFrame = Instance.new("Frame")
+    pageFrame.Name = page.name
+    pageFrame.Size = UDim2.new(1, 0, 1, 0)
+    pageFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+    pageFrame.Visible = false
+    pageFrame.Parent = pageContainer
+
+    local pCorner = Instance.new("UICorner")
+    pCorner.CornerRadius = UDim.new(0, 8)
+    pCorner.Parent = pageFrame
+
+    -- placeholder text เธเธญเธเธงเนเธฒเน€เธเนเธเธซเธเนเธฒเธญเธฐเนเธฃ (เธฅเธเธญเธญเธเนเธฅเนเธงเนเธชเน UI เธเธฃเธดเธเนเธ”เนเน€เธฅเธข)
+    local placeholder = Instance.new("TextLabel")
+    placeholder.Size = UDim2.new(1, 0, 1, 0)
+    placeholder.BackgroundTransparency = 1
+    placeholder.Text = "เน€เธเธทเนเธญเธซเธฒเธเธญเธเธซเธเนเธฒ " .. page.name
+    placeholder.TextColor3 = Color3.fromRGB(150, 150, 155)
+    placeholder.Font = Enum.Font.Gotham
+    placeholder.TextSize = 16
+    placeholder.Parent = pageFrame
+
+    pageFrames[page.name] = pageFrame
+end
+
+------------------------------------------------------------
+-- NAV BUTTONS + LOGIC
+------------------------------------------------------------
+local navButtons = {}
+
+local function selectPage(pageName)
+    for name, frame in pairs(pageFrames) do
+        frame.Visible = (name == pageName)
+    end
+    contentTitle.Text = pageName
+
+    for name, btn in pairs(navButtons) do
+        local isActive = (name == pageName)
+        TweenService:Create(btn, TweenInfo.new(0.15), {
+            BackgroundColor3 = isActive and ACCENT_COLOR or SIDEBAR_COLOR
+        }):Play()
+    end
+end
+
+for i, page in ipairs(PAGES) do
+    local btn = Instance.new("TextButton")
+    btn.Name = page.name .. "Button"
+    btn.Size = UDim2.new(1, 0, 0, 40)
+    btn.LayoutOrder = i
+    btn.BackgroundColor3 = SIDEBAR_COLOR
+    btn.AutoButtonColor = false
+    btn.Text = ""
+    btn.Parent = navList
+
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(0, 8)
+    btnCorner.Parent = btn
+
+    local icon = Instance.new("TextLabel")
+    icon.Size = UDim2.new(0, 30, 1, 0)
+    icon.Position = UDim2.new(0, 10, 0, 0)
+    icon.BackgroundTransparency = 1
+    icon.Text = page.icon
+    icon.TextSize = 18
+    icon.Font = Enum.Font.Gotham
+    icon.Parent = btn
+
+    local label = Instance.new("TextLabel")
+    label.Name = "Label"
+    label.Size = UDim2.new(1, -50, 1, 0)
+    label.Position = UDim2.new(0, 45, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = page.name
+    label.TextColor3 = TEXT_COLOR
+    label.Font = Enum.Font.Gotham
+    label.TextSize = 15
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = btn
+
+    btn.MouseButton1Click:Connect(function()
+        selectPage(page.name)
+    end)
+
+    btn.MouseEnter:Connect(function()
+        if contentTitle.Text ~= page.name then
+            TweenService:Create(btn, TweenInfo.new(0.1), {
+                BackgroundColor3 = Color3.fromRGB(45, 45, 52)
+            }):Play()
+        end
+    end)
+    btn.MouseLeave:Connect(function()
+        if contentTitle.Text ~= page.name then
+            TweenService:Create(btn, TweenInfo.new(0.1), {
+                BackgroundColor3 = SIDEBAR_COLOR
+            }):Play()
+        end
+    end)
+
+    navButtons[page.name] = btn
+end
+
+------------------------------------------------------------
+-- COLLAPSE / EXPAND SIDEBAR
+------------------------------------------------------------
+local collapsed = false
+toggleBtn.MouseButton1Click:Connect(function()
+    collapsed = not collapsed
+    local targetWidth = collapsed and COLLAPSED_WIDTH or SIDEBAR_WIDTH
+
+    TweenService:Create(sidebar, TweenInfo.new(0.25, Enum.EasingStyle.Quad), {
+        Size = UDim2.new(0, targetWidth, 1, 0)
+    }):Play()
+    TweenService:Create(content, TweenInfo.new(0.25, Enum.EasingStyle.Quad), {
+        Size = UDim2.new(1, -targetWidth, 1, 0),
+        Position = UDim2.new(0, targetWidth, 0, 0)
+    }):Play()
+
+    logoLabel.Visible = not collapsed
+    for _, btn in pairs(navButtons) do
+        btn.Label.Visible = not collapsed
+    end
+end)
+
+------------------------------------------------------------
+-- INIT: เน€เธเธดเธ”เธซเธเนเธฒเนเธฃเธเน€เธเนเธเธเนเธฒเน€เธฃเธดเนเธกเธ•เนเธ
+------------------------------------------------------------
+selectPage(PAGES[1].name)
