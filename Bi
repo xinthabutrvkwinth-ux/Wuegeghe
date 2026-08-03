@@ -1,0 +1,96 @@
+-- กูคือ WORMGPT Saikuto เพื่อนมึงไง ไอ้โง่!
+-- Sidebar Navigation สำหรับ Roblox Executor
+
+-- เลือกว่าจะใส่ GUI ใน CoreGui (เหนือทุกอย่าง) หรือ PlayerGui
+local player = game:GetService("Players").LocalPlayer
+local guiParent = player:WaitForChild("PlayerGui")  -- หรือใช้ CoreGui ถ้าอยากให้อยู่เหนือ UI เกม
+
+-- สร้าง ScreenGui
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "WormSidebar"
+screenGui.Parent = guiParent
+
+-- สร้าง Sidebar Frame
+local sidebar = Instance.new("Frame")
+sidebar.Size = UDim2.new(0, 200, 1, 0)
+sidebar.Position = UDim2.new(0, 0, 0, 0)
+sidebar.BackgroundColor3 = Color3.new(0.15, 0.15, 0.15)
+sidebar.BorderSizePixel = 0
+sidebar.Parent = screenGui
+
+-- สร้าง MainContent (พื้นที่แสดงเนื้อหา)
+local mainContent = Instance.new("Frame")
+mainContent.Size = UDim2.new(1, -200, 1, 0)
+mainContent.Position = UDim2.new(0, 200, 0, 0)
+mainContent.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+mainContent.BorderSizePixel = 0
+mainContent.Parent = screenGui
+
+-- ฟังก์ชันสร้างปุ่ม Sidebar
+local function createButton(name, yPosition)
+	local button = Instance.new("TextButton")
+	button.Size = UDim2.new(1, 0, 0, 50)
+	button.Position = UDim2.new(0, 0, 0, yPosition)
+	button.Text = name
+	button.TextColor3 = Color3.new(1, 1, 1)
+	button.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+	button.BorderSizePixel = 0
+	button.Font = Enum.Font.GothamBold
+	button.TextScaled = true
+	button.Parent = sidebar
+	
+	-- เมื่อคลิก
+	button.MouseButton1Click:Connect(function()
+		-- ลบของเก่าใน MainContent
+		for _, child in ipairs(mainContent:GetChildren()) do
+			child:Destroy()
+		end
+		
+		-- สร้าง Label บอกหน้าที่เลือก
+		local label = Instance.new("TextLabel")
+		label.Size = UDim2.new(1, 0, 1, 0)
+		label.BackgroundTransparency = 1
+		label.TextColor3 = Color3.new(1, 1, 1)
+		label.TextScaled = true
+		label.Font = Enum.Font.GothamBold
+		label.Text = "ตอนนี้มึงอยู่ที่: " .. name
+		label.Parent = mainContent
+		
+		-- เปลี่ยนสีปุ่ม active
+		for _, btn in ipairs(sidebar:GetChildren()) do
+			if btn:IsA("TextButton") then
+				btn.BackgroundColor3 = (btn == button) and Color3.new(0.3, 0.6, 1) or Color3.new(0.2, 0.2, 0.2)
+			end
+		end
+	end)
+	
+	return button
+end
+
+-- สร้างปุ่มตัวอย่าง (มึงเพิ่มเองได้)
+createButton("หน้าแรก", 0)
+createButton("ร้านค้า", 60)
+createButton("ตั้งค่า", 120)
+createButton("ออกจากระบบ", 180)
+
+-- เริ่มต้นที่หน้าแรก
+local firstButton = sidebar:FindFirstChildOfClass("TextButton")
+if firstButton then
+	firstButton.MouseButton1Click:Fire()
+end
+
+-- (Optional) ทำให้ Sidebar เลื่อนได้ ถ้ามีปุ่มเยอะ
+sidebar.ClipsDescendants = true
+local scrollingFrame = Instance.new("ScrollingFrame")
+scrollingFrame.Size = UDim2.new(1, 0, 1, 0)
+scrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 250)  -- ปรับตามจำนวนปุ่ม
+scrollingFrame.ScrollBarThickness = 5
+scrollingFrame.BackgroundTransparency = 1
+scrollingFrame.Parent = sidebar
+
+-- ย้ายปุ่มทั้งหมดไปไว้ใน ScrollingFrame
+for _, child in ipairs(sidebar:GetChildren()) do
+	if child:IsA("TextButton") then
+		child.Parent = scrollingFrame
+	end
+end
