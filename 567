@@ -1,0 +1,476 @@
+--[[
+  ██████╗  █████╗ ██████╗ ██╗  ██╗ ██████╗ ██╗   ██╗██████╗ 
+  ██╔══██╗██╔══██╗██╔══██╗██║ ██╔╝██╔═══██╗██║   ██║██╔══██╗
+  ██████╔╝███████║██████╔╝█████╔╝ ██║   ██║██║   ██║██████╔╝
+  ██╔══██╗██╔══██║██╔══██╗██╔═██╗ ██║   ██║██║   ██║██╔══██╗
+  ██║  ██║██║  ██║██║  ██║██║  ██╗╚██████╔╝╚██████╔╝██║  ██║
+  ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝  ╚═════╝ ╚═╝  ╚═╝
+--]]
+-- สคริปต์นี้เป็น LocalScript สำหรับ Roblox Luau
+-- ใช้สร้าง UI Sidebar Navigation พร้อมข้อมูลแมพ Darkour, Mark Hole, ExAndemic
+-- รองรับการสลับแท็บ, แสดงรางวัล, คู่มือ, และปุ่ม Play/Ready
+
+local Players = game:GetService("Players")
+local Player = Players.LocalPlayer
+local GuiService = game:GetService("GuiService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+
+-- สร้าง ScreenGui หลัก (จะถูกเพิ่มใน PlayerGui)
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "DarkourMainUI"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.IgnoreGuiInset = true
+ScreenGui.Parent = Player:WaitForChild("PlayerGui")
+
+-- ============ ฟังก์ชันสร้างปุ่มแม่เหล็ก ============
+local function createButton(parent, name, text, position, size, color, callback)
+	local btn = Instance.new("TextButton")
+	btn.Name = name
+	btn.Text = text
+	btn.Size = size or UDim2.new(0, 180, 0, 40)
+	btn.Position = position or UDim2.new(0, 10, 0, 10)
+	btn.BackgroundColor3 = color or Color3.fromRGB(45, 45, 60)
+	btn.BorderSizePixel = 0
+	btn.TextColor3 = Color3.fromRGB(220, 220, 255)
+	btn.TextSize = 18
+	btn.Font = Enum.Font.GothamBold
+	btn.BackgroundTransparency = 0.1
+	btn.Parent = parent
+	
+	-- เอฟเฟกต์โฮเวอร์
+	btn.MouseEnter:Connect(function()
+		TweenService:Create(btn, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {BackgroundTransparency = 0.4}):Play()
+	end)
+	btn.MouseLeave:Connect(function()
+		TweenService:Create(btn, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {BackgroundTransparency = 0.1}):Play()
+	end)
+	
+	if callback then
+		btn.MouseButton1Click:Connect(callback)
+	end
+	return btn
+end
+
+-- ============ สร้างเฟรมหลัก (Sidebar + Content) ============
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(1, 0, 1, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 28)
+MainFrame.BackgroundTransparency = 0.05
+MainFrame.Parent = ScreenGui
+
+-- ============ Sidebar (ด้านซ้าย) ============
+local Sidebar = Instance.new("Frame")
+Sidebar.Name = "Sidebar"
+Sidebar.Size = UDim2.new(0, 220, 1, 0)
+Sidebar.BackgroundColor3 = Color3.fromRGB(12, 12, 20)
+Sidebar.BorderSizePixel = 0
+Sidebar.Parent = MainFrame
+
+-- หัวข้อ Sidebar
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Size = UDim2.new(1, 0, 0, 60)
+TitleLabel.Position = UDim2.new(0, 0, 0, 10)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.Text = "🔥 DARKOUR HUB"
+TitleLabel.TextColor3 = Color3.fromRGB(255, 70, 70)
+TitleLabel.TextSize = 22
+TitleLabel.Font = Enum.Font.GothamBlack
+TitleLabel.Parent = Sidebar
+
+-- เส้นคั่น
+local Divider = Instance.new("Frame")
+Divider.Size = UDim2.new(0.8, 0, 0, 2)
+Divider.Position = UDim2.new(0.1, 0, 0, 75)
+Divider.BackgroundColor3 = Color3.fromRGB(70, 70, 90)
+Divider.BorderSizePixel = 0
+Divider.Parent = Sidebar
+
+-- ตารางปุ่มหมวดหมู่ (Sidebar Navigation)
+local Categories = {
+	{name = "Maps", text = "🗺️ แผนที่", color = Color3.fromRGB(30, 144, 255)},
+	{name = "Rewards", text = "🎁 รางวัล", color = Color3.fromRGB(255, 215, 0)},
+	{name = "Guide", text = "📖 คู่มือ", color = Color3.fromRGB(50, 205, 50)},
+	{name = "Settings", text = "⚙️ ตั้งค่า", color = Color3.fromRGB(200, 150, 255)}
+}
+
+local Buttons = {}
+local ContentFrame = nil  -- จะสร้างทีหลัง
+
+-- ฟังก์ชันเปลี่ยนแท็บ (จะประกาศไว้ก่อนแล้วค่อยเติม)
+local function switchTab(tabName)
+	-- ทำงานจริงที่ด้านล่าง
+end
+
+-- สร้างปุ่มใน Sidebar
+local buttonY = 90
+for _, cat in ipairs(Categories) do
+	local btn = createButton(
+		Sidebar, 
+		cat.name, 
+		cat.text, 
+		UDim2.new(0.1, 0, 0, buttonY), 
+		UDim2.new(0.8, 0, 0, 42), 
+		cat.color,
+		function()
+			switchTab(cat.name)
+		end
+	)
+	btn.BackgroundTransparency = 0.3
+	btn.TextXAlignment = Enum.TextXAlignment.Left
+	btn.TextSize = 17
+	table.insert(Buttons, btn)
+	buttonY = buttonY + 52
+end
+
+-- ปุ่ม Play และ Ready ที่ Sidebar ล่าง
+local PlayBtn = createButton(
+	Sidebar, "PlayBtn", "▶️ PLAY", 
+	UDim2.new(0.1, 0, 0, buttonY + 30), 
+	UDim2.new(0.8, 0, 0, 48),
+	Color3.fromRGB(220, 20, 60),
+	function()
+		print("🚀 เริ่มเกม Darkour! (จำลอง)")
+		-- จำลองการเล่น
+		local notif = Instance.new("TextLabel")
+		notif.Size = UDim2.new(0, 300, 0, 50)
+		notif.Position = UDim2.new(0.5, -150, 0.5, -25)
+		notif.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+		notif.BackgroundTransparency = 0.2
+		notif.Text = "⚡ กำลังเข้าสู่แมพ... ⚡"
+		notif.TextColor3 = Color3.fromRGB(255, 255, 0)
+		notif.TextSize = 24
+		notif.Font = Enum.Font.GothamBold
+		notif.Parent = MainFrame
+		task.wait(1.5)
+		notif:Destroy()
+	end
+)
+PlayBtn.Position = UDim2.new(0.1, 0, 0, buttonY + 30)
+
+local ReadyBtn = createButton(
+	Sidebar, "ReadyBtn", "✅ Ready! (100%)", 
+	UDim2.new(0.1, 0, 0, buttonY + 90), 
+	UDim2.new(0.8, 0, 0, 38),
+	Color3.fromRGB(0, 150, 0),
+	function()
+		print("💯 พร้อมแล้ว! ระบบปลดล็อค Pardon x4")
+		local rewardLabel = Instance.new("TextLabel")
+		rewardLabel.Size = UDim2.new(0, 250, 0, 40)
+		rewardLabel.Position = UDim2.new(0.5, -125, 0.85, 0)
+		rewardLabel.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+		rewardLabel.BackgroundTransparency = 0.2
+		rewardLabel.Text = "🎖️ ได้รับ Pardon x4 🎖️"
+		rewardLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
+		rewardLabel.TextSize = 20
+		rewardLabel.Font = Enum.Font.GothamBold
+		rewardLabel.Parent = MainFrame
+		task.wait(2)
+		rewardLabel:Destroy()
+	end
+)
+
+-- ============ Content Frame (ด้านขวา) ============
+ContentFrame = Instance.new("ScrollingFrame")
+ContentFrame.Name = "ContentFrame"
+ContentFrame.Size = UDim2.new(1, -230, 1, -20)
+ContentFrame.Position = UDim2.new(0, 230, 0, 10)
+ContentFrame.BackgroundColor3 = Color3.fromRGB(28, 28, 40)
+ContentFrame.BackgroundTransparency = 0.3
+ContentFrame.BorderSizePixel = 0
+ContentFrame.CanvasSize = UDim2.new(0, 0, 0, 800)
+ContentFrame.ScrollBarThickness = 8
+ContentFrame.ScrollBarImageColor3 = Color3.fromRGB(150, 150, 200)
+ContentFrame.Parent = MainFrame
+
+-- ============ ข้อมูลแมพ (จำลอง) ============
+local MapData = {
+	Darkour = {
+		icon = "🔥",
+		desc = "แมพสุดโหด หลบกับดักและปีนกำแพงไฟ\nระดับความยาก: ★★★★★",
+		time = "04:32",
+		bestScore = "A+"
+	},
+	MarkHole = {
+		icon = "🕳️",
+		desc = "กระโดดข้ามหลุมมรณะ จับเวลาพิเศษ\nระดับความยาก: ★★★★☆",
+		time = "03:15",
+		bestScore = "S"
+	},
+	ExAndemic = {
+		icon = "🦠",
+		desc = "เขตรักษาพันธุ์ไวรัส เอาชีวิตรอด 10 นาที\nระดับความยาก: ★★★★★",
+		time = "09:47",
+		bestScore = "A"
+	}
+}
+
+local RewardData = {
+	{name = "Pardon (x4)", rarity = "ตำนาน", desc = "ลดโทษทุกความผิด 4 ครั้ง"},
+	{name = "Dark Crystal", rarity = "หายาก", desc = "เพิ่มความเร็ว 15%"},
+	{name = "Shadow Cloak", rarity = "ทั่วไป", desc = "พรางตัว 3 วินาที"}
+}
+
+-- ============ ฟังก์ชันสร้างเนื้อหาแต่ละแท็บ ============
+local function clearContent()
+	for _, child in ipairs(ContentFrame:GetChildren()) do
+		if child:IsA("TextLabel") or child:IsA("Frame") or child:IsA("ImageLabel") then
+			child:Destroy()
+		end
+	end
+	ContentFrame.CanvasSize = UDim2.new(0, 0, 0, 800)
+end
+
+local function buildMapsTab()
+	clearContent()
+	local y = 10
+	for mapName, info in pairs(MapData) do
+		local card = Instance.new("Frame")
+		card.Size = UDim2.new(0.9, 0, 0, 120)
+		card.Position = UDim2.new(0.05, 0, 0, y)
+		card.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+		card.BackgroundTransparency = 0.2
+		card.BorderSizePixel = 0
+		card.Parent = ContentFrame
+		
+		local iconLbl = Instance.new("TextLabel")
+		iconLbl.Size = UDim2.new(0, 60, 1, 0)
+		iconLbl.BackgroundTransparency = 1
+		iconLbl.Text = info.icon
+		iconLbl.TextSize = 40
+		iconLbl.Font = Enum.Font.GothamBold
+		iconLbl.Parent = card
+		
+		local nameLbl = Instance.new("TextLabel")
+		nameLbl.Size = UDim2.new(0.6, 0, 0, 35)
+		nameLbl.Position = UDim2.new(0.15, 0, 0, 5)
+		nameLbl.BackgroundTransparency = 1
+		nameLbl.Text = mapName
+		nameLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+		nameLbl.TextSize = 24
+		nameLbl.Font = Enum.Font.GothamBlack
+		nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+		nameLbl.Parent = card
+		
+		local descLbl = Instance.new("TextLabel")
+		descLbl.Size = UDim2.new(0.7, 0, 0, 50)
+		descLbl.Position = UDim2.new(0.15, 0, 0, 40)
+		descLbl.BackgroundTransparency = 1
+		descLbl.Text = info.desc
+		descLbl.TextColor3 = Color3.fromRGB(180, 180, 200)
+		descLbl.TextSize = 16
+		descLbl.Font = Enum.Font.Gotham
+		descLbl.TextXAlignment = Enum.TextXAlignment.Left
+		descLbl.TextWrapped = true
+		descLbl.Parent = card
+		
+		local timeLbl = Instance.new("TextLabel")
+		timeLbl.Size = UDim2.new(0, 100, 0, 25)
+		timeLbl.Position = UDim2.new(0.75, 0, 0, 80)
+		timeLbl.BackgroundTransparency = 1
+		timeLbl.Text = "⏱️ " .. info.time
+		timeLbl.TextColor3 = Color3.fromRGB(100, 200, 255)
+		timeLbl.TextSize = 16
+		timeLbl.Font = Enum.Font.Gotham
+		timeLbl.Parent = card
+		
+		local scoreLbl = Instance.new("TextLabel")
+		scoreLbl.Size = UDim2.new(0, 80, 0, 25)
+		scoreLbl.Position = UDim2.new(0.75, 110, 0, 80)
+		scoreLbl.BackgroundTransparency = 1
+		scoreLbl.Text = "🏆 " .. info.bestScore
+		scoreLbl.TextColor3 = Color3.fromRGB(255, 215, 0)
+		scoreLbl.TextSize = 16
+		scoreLbl.Font = Enum.Font.Gotham
+		scoreLbl.Parent = card
+		
+		y = y + 135
+	end
+	ContentFrame.CanvasSize = UDim2.new(0, 0, 0, y + 50)
+end
+
+local function buildRewardsTab()
+	clearContent()
+	local y = 10
+	for i, reward in ipairs(RewardData) do
+		local card = Instance.new("Frame")
+		card.Size = UDim2.new(0.9, 0, 0, 80)
+		card.Position = UDim2.new(0.05, 0, 0, y)
+		card.BackgroundColor3 = Color3.fromRGB(50, 40, 30)
+		card.BackgroundTransparency = 0.3
+		card.BorderSizePixel = 1
+		card.BorderColor3 = Color3.fromRGB(255, 215, 0)
+		card.Parent = ContentFrame
+		
+		local nameLbl = Instance.new("TextLabel")
+		nameLbl.Size = UDim2.new(0.5, 0, 0, 30)
+		nameLbl.Position = UDim2.new(0.05, 0, 0, 5)
+		nameLbl.BackgroundTransparency = 1
+		nameLbl.Text = reward.name
+		nameLbl.TextColor3 = Color3.fromRGB(255, 255, 200)
+		nameLbl.TextSize = 22
+		nameLbl.Font = Enum.Font.GothamBold
+		nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+		nameLbl.Parent = card
+		
+		local rarityLbl = Instance.new("TextLabel")
+		rarityLbl.Size = UDim2.new(0.2, 0, 0, 25)
+		rarityLbl.Position = UDim2.new(0.7, 0, 0, 5)
+		rarityLbl.BackgroundTransparency = 1
+		rarityLbl.Text = "[" .. reward.rarity .. "]"
+		rarityLbl.TextColor3 = reward.rarity == "ตำนาน" and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(200, 200, 0)
+		rarityLbl.TextSize = 16
+		rarityLbl.Font = Enum.Font.Gotham
+		rarityLbl.Parent = card
+		
+		local descLbl = Instance.new("TextLabel")
+		descLbl.Size = UDim2.new(0.8, 0, 0, 30)
+		descLbl.Position = UDim2.new(0.05, 0, 0, 40)
+		descLbl.BackgroundTransparency = 1
+		descLbl.Text = reward.desc
+		descLbl.TextColor3 = Color3.fromRGB(180, 180, 200)
+		descLbl.TextSize = 15
+		descLbl.Font = Enum.Font.Gotham
+		descLbl.TextXAlignment = Enum.TextXAlignment.Left
+		descLbl.Parent = card
+		
+		y = y + 95
+	end
+	ContentFrame.CanvasSize = UDim2.new(0, 0, 0, y + 50)
+end
+
+local function buildGuideTab()
+	clearContent()
+	local guideText = [[
+📖 คู่มือ DARKOUR ฉบับสมบูรณ์
+
+1. หลักการพื้นฐาน
+   - ใช้ WASD หรือปุ่มลูกศรเพื่อเคลื่อนที่
+   - Space เพื่อกระโดด (กดค้างเพื่อกระโดดไกล)
+   - Shift เพื่อวิ่ง (มีขีดจำกัดความเหนื่อย)
+
+2. กลไกแมพ
+   - Darkour: ปีนกำแพงไฟ หลบหนามเคลื่อนที่
+   - Mark Hole: กระโดดข้ามหลุมแบบสุ่ม เก็บเหรียญเวลา
+   - ExAndemic: หลีกเลี่ยงสิ่งมีชีวิตติดเชื้อ เก็บยาแก้พิษ
+
+3. ระบบรางวัล
+   - Pardon (x4): ใช้เมื่อตายเพื่อคืนชีพ ณ จุดที่ตาย
+   - Dark Crystal: เพิ่มความเร็วในการเคลื่อนที่
+   - Shadow Cloak: เปิดใช้งานด้วยปุ่ม Q ทำให้ศัตรูมองไม่เห็น
+
+4. เคล็ดลับ
+   - ใช้การกระโดดแบบ wall-jump บนพื้นผิวแนวตั้ง
+   - จับเวลาการเปิด-ปิดของกับดัก
+   - ใน ExAndemic อย่าวิ่งตรงกลางทางเดิน
+
+5. ระดับความยาก
+   ★☆☆☆☆ - ฝึกหัด
+   ★★★☆☆ - ปานกลาง
+   ★★★★★ - โหดมาก (แนะนำให้เล่นเป็นทีม)
+]]
+	local guideLabel = Instance.new("TextLabel")
+	guideLabel.Size = UDim2.new(0.9, 0, 0.9, 0)
+	guideLabel.Position = UDim2.new(0.05, 0, 0.05, 0)
+	guideLabel.BackgroundTransparency = 1
+	guideLabel.Text = guideText
+	guideLabel.TextColor3 = Color3.fromRGB(200, 210, 230)
+	guideLabel.TextSize = 17
+	guideLabel.Font = Enum.Font.Gotham
+	guideLabel.TextXAlignment = Enum.TextXAlignment.Left
+	guideLabel.TextYAlignment = Enum.TextYAlignment.Top
+	guideLabel.TextWrapped = true
+	guideLabel.Parent = ContentFrame
+	ContentFrame.CanvasSize = UDim2.new(0, 0, 0, 700)
+end
+
+local function buildSettingsTab()
+	clearContent()
+	local settings = {
+		{"🎮 ความไวเมาส์", "ปรับค่า 0.5 - 2.0 (ปัจจุบัน 1.2)"},
+		{"🔊 เอฟเฟกต์เสียง", "เปิด/ปิด (ปัจจุบัน เปิด)"},
+		{"🎵 เพลงประกอบ", "เปิด/ปิด (ปัจจุบัน เปิด)"},
+		{"🕹️ ปุ่มควบคุม", "ปรับแต่งปุ่มลัด (กดเพื่อเปลี่ยน)"},
+		{"👁️ มุมมอง", "มุมมองบุคคลที่ 1 / 3 (ปัจจุบัน 3)"}
+	}
+	local y = 10
+	for _, item in ipairs(settings) do
+		local row = Instance.new("Frame")
+		row.Size = UDim2.new(0.9, 0, 0, 50)
+		row.Position = UDim2.new(0.05, 0, 0, y)
+		row.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+		row.BackgroundTransparency = 0.3
+		row.BorderSizePixel = 0
+		row.Parent = ContentFrame
+		
+		local nameLbl = Instance.new("TextLabel")
+		nameLbl.Size = UDim2.new(0.5, 0, 1, 0)
+		nameLbl.Position = UDim2.new(0.02, 0, 0, 0)
+		nameLbl.BackgroundTransparency = 1
+		nameLbl.Text = item[1]
+		nameLbl.TextColor3 = Color3.fromRGB(220, 220, 255)
+		nameLbl.TextSize = 18
+		nameLbl.Font = Enum.Font.Gotham
+		nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+		nameLbl.Parent = row
+		
+		local valLbl = Instance.new("TextLabel")
+		valLbl.Size = UDim2.new(0.4, 0, 1, 0)
+		valLbl.Position = UDim2.new(0.55, 0, 0, 0)
+		valLbl.BackgroundTransparency = 1
+		valLbl.Text = item[2]
+		valLbl.TextColor3 = Color3.fromRGB(150, 200, 150)
+		valLbl.TextSize = 16
+		valLbl.Font = Enum.Font.Gotham
+		valLbl.TextXAlignment = Enum.TextXAlignment.Right
+		valLbl.Parent = row
+		
+		y = y + 60
+	end
+	ContentFrame.CanvasSize = UDim2.new(0, 0, 0, y + 50)
+end
+
+-- ============ ประกาศฟังก์ชัน switchTab จริง ============
+function switchTab(tabName)
+	print("🔄 เปลี่ยนแท็บ: " .. tabName)
+	for _, btn in ipairs(Buttons) do
+		if btn.Name == tabName then
+			btn.BackgroundTransparency = 0.1
+			btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+		else
+			btn.BackgroundTransparency = 0.4
+			btn.TextColor3 = Color3.fromRGB(180, 180, 200)
+		end
+	end
+	
+	if tabName == "Maps" then
+		buildMapsTab()
+	elseif tabName == "Rewards" then
+		buildRewardsTab()
+	elseif tabName == "Guide" then
+		buildGuideTab()
+	elseif tabName == "Settings" then
+		buildSettingsTab()
+	end
+end
+
+-- ============ เริ่มต้นด้วยแท็บ Maps ============
+switchTab("Maps")
+
+-- ============ จัดการการปิด UI ด้วยปุ่ม ESC ============
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+	if input.KeyCode == Enum.KeyCode.Escape then
+		ScreenGui.Enabled = not ScreenGui.Enabled
+	end
+end)
+
+-- ============ ปรับขนาด Canvas อัตโนมัติเมื่อเปลี่ยนขนาดหน้าต่าง ============
+local function updateCanvas()
+	-- ปรับให้เนื้อหาไม่ล้นถ้าจอเล็ก (ทำเล็กน้อย)
+end
+game:GetService("RunService").RenderStepped:Connect(updateCanvas)
+
+print("🔥 Darkour UI โหลดสำเร็จ! ใช้ ESC ซ่อน/แสดง")
+-- ลิขสิทธิ์ Saikuto 😈👹🥷👾❄️🌚👽❤️‍🩹🦠🕷️🔨
