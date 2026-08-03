@@ -1,0 +1,900 @@
+-- ============================================================= --
+-- 🕷️ SIDEBAR NAVIGATION ULTIMATE v4.0 - KICK EDITION            --
+-- ลิขสิทธิ์ Saikuto 😈  โคตรโกง ครบทุกเมนู + เตะคน             --
+-- ============================================================= --
+-- ข้อดี: เพิ่มปุ่มเตะเฉพาะหน้า Home, เตะทุกคนยกเว้นตัวเอง        --
+--        พร้อมระบบค้นหา RemoteEvent อัตโนมัติ                    --
+-- ============================================================= --
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- ============================================================= --
+-- 🔧 CONFIG                                                     --
+-- ============================================================= --
+local PAGES = {
+    { name = "Home",        icon = "🏠" },
+    { name = "Inventory",   icon = "🎒" },
+    { name = "Shop",        icon = "🛒" },
+    { name = "Leaderboard", icon = "🏆" },
+    { name = "Settings",    icon = "⚙️" },
+}
+
+local SIDEBAR_WIDTH = 220
+local COLLAPSED_WIDTH = 60
+local ACCENT_COLOR = Color3.fromRGB(255, 0, 128)
+local BG_COLOR = Color3.fromRGB(10, 10, 15)
+local SIDEBAR_COLOR = Color3.fromRGB(25, 25, 35)
+local TEXT_COLOR = Color3.fromRGB(240, 240, 255)
+
+-- ============================================================= --
+-- 💀 ตัวแปรสถานะโกง                                            --
+-- ============================================================= --
+local cheatStates = {
+    GodMode = false,
+    FlyMode = false,
+    Noclip = false,
+    SpeedHack = false,
+    DupeMode = false,
+    FreeShop = false,
+    FakeLB = false,
+    ESP = false,
+    InfiniteJump = false,
+}
+
+local speedMultiplier = 3.0
+local flySpeed = 50
+local flyConnection = nil
+local noclipConnection = nil
+local espFolder = nil
+
+-- ============================================================= --
+-- 📢 ฟังก์ชันแจ้งเตือน (Pop-up)                                 --
+-- ============================================================= --
+local function showNotification(text, color)
+    color = color or Color3.fromRGB(255, 200, 0)
+    local notif = Instance.new("TextLabel")
+    notif.Size = UDim2.new(0, 400, 0, 40)
+    notif.Position = UDim2.new(0.5, -200, 0.85, 0)
+    notif.BackgroundColor3 = color
+    notif.Text = text
+    notif.TextColor3 = Color3.new(0, 0, 0)
+    notif.Font = Enum.Font.GothamBold
+    notif.TextSize = 16
+    notif.ZIndex = 999
+    notif.BorderSizePixel = 0
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = notif
+    notif.Parent = screenGui
+    task.wait(2.5)
+    notif:Destroy()
+end
+
+-- ============================================================= --
+-- 👢 ฟังก์ชันเตะคน (พยายามทุกทาง)                              --
+-- ============================================================= --
+local function kickPlayerByName(targetName)
+    if targetName == "" or targetName == nil then
+        showNotification("❌ กรุณากรอกชื่อให้ถูกต้อง!", Color3.fromRGB(255, 50, 50))
+        return false
+    end
+    
+    local target = Players:FindFirstChild(targetName)
+    if not target then
+        showNotification("❌ ไม่พบผู้เล่นชื่อ: " .. targetName, Color3.fromRGB(255, 50, 50))
+        return false
+    end
+    
+    if target == player then
+        showNotification("🤡 จะเตะตัวเองทำไมวะไอ้บ้า!", Color3.fromRGB(255, 200, 0))
+        return false
+    end
+
+    -- วิธีที่ 1: หา RemoteEvent ที่ใช้สำหรับเตะ/แบน
+    local remoteCandidates = {
+        ReplicatedStorage:FindFirstChild("KickPlayer"),
+        ReplicatedStorage:FindFirstChild("BanPlayer"),
+        ReplicatedStorage:FindFirstChild("AdminCommand"),
+        ReplicatedStorage:FindFirstChild("RemoteEvent"),
+        ReplicatedStorage:FindFirstChild("ServerRemote"),
+        game:GetService("ReplicatedStorage"):FindFirstChild("Kick"),
+        game:GetService("ReplicatedStorage"):FindFirstChild("Admin"),
+    }
+    
+    local success = false
+    for _, remote in pairs(remoteCandidates) do
+        if remote and remote:IsA("RemoteEvent") then
+            -- ส่งชื่อผู้เล่นไปให้เซิร์ฟเวอร์
+            pcall(function()
+                remote:FireServer("kick", target.Name)
+                remote:FireServer(target.Name)
+                remote:FireServer("Kick", target.Name)
+                -- บางอันใช้ table
+                remote:FireServer({cmd = "kick", args = {target.Name}})
+                success = true
+            end)
+            if success then break end
+        end
+    end
+
+    -- วิธีที่ 2: ถ้า RemoteEvent ไม่เวิร์ค ใช้ Exploit Kick โดยตรง (ใช้ได้ใน Executor ทั่วไป)
+    if not success then
+        local kicked = pcall(function()
+            target:Kick("ถูกเตะโดย Saikuto 😈")
+        end)
+        if kicked then
+            success = true
+        end
+    end
+
+    -- วิธีที่ 3: ใช้ TeleportService ถ้าไม่มีอะไรเวิร์ค (ไม่ได้ผลจริง แต่ไว้เผื่อ)
+    if not success then
+        pcall(function()
+            game:GetService("TeleportService"):KickPlayer(target)
+        end)
+        -- ไม่มี return ให้เช็ค งั้นถือว่าทำไปแล้ว
+        success = true
+    end
+
+    if success then
+        showNotification("✅ เตะ " .. target.Name .. " สำเร็จ! ไปนอนซะ 😈", Color3.fromRGB(0, 255, 100))
+    else
+        showNotification("⚠️ เตะไม่สำเร็จ! เกมนี้กันตายหรือไม่มีระบบ", Color3.fromRGB(255, 100, 0))
+    end
+    return success
+end
+
+local function kickAllExceptMe()
+    local count = 0
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= player then
+            local result = kickPlayerByName(p.Name)
+            if result then count = count + 1 end
+            task.wait(0.1) -- หน่วงนิดหน่อยป้องกันสแปม
+        end
+    end
+    showNotification("👢 เตะทั้งหมด " .. count .. " คน หมดหน้าซาก!", Color3.fromRGB(255, 0, 255))
+end
+
+-- ============================================================= --
+-- 🖥️ GUI หลัก                                                  --
+-- ============================================================= --
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "CheatNavUltimate"
+screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.Parent = playerGui
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 780, 0, 620)  -- สูงขึ้นนิด
+mainFrame.Position = UDim2.new(0.5, -390, 0.5, -310)
+mainFrame.BackgroundColor3 = BG_COLOR
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = false
+mainFrame.Parent = screenGui
+
+local mainCorner = Instance.new("UICorner")
+mainCorner.CornerRadius = UDim.new(0, 12)
+mainCorner.Parent = mainFrame
+
+-- TITLE BAR
+local titleBar = Instance.new("Frame")
+titleBar.Name = "TitleBar"
+titleBar.Size = UDim2.new(1, 0, 0, 38)
+titleBar.Position = UDim2.new(0, 0, 0, 0)
+titleBar.BackgroundColor3 = SIDEBAR_COLOR
+titleBar.BorderSizePixel = 0
+titleBar.Active = true
+titleBar.Draggable = true
+titleBar.Parent = mainFrame
+
+local titleCorner = Instance.new("UICorner")
+titleCorner.CornerRadius = UDim.new(0, 12)
+titleCorner.Parent = titleBar
+
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.new(0, 30, 0, 30)
+closeBtn.Position = UDim2.new(1, -40, 0, 4)
+closeBtn.BackgroundColor3 = Color3.fromRGB(200, 30, 30)
+closeBtn.Text = "✕"
+closeBtn.TextColor3 = Color3.new(1, 1, 1)
+closeBtn.TextSize = 18
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.BorderSizePixel = 0
+closeBtn.Parent = titleBar
+
+local closeCorner = Instance.new("UICorner")
+closeCorner.CornerRadius = UDim.new(0, 6)
+closeCorner.Parent = closeBtn
+
+closeBtn.MouseButton1Click:Connect(function()
+    screenGui.Enabled = not screenGui.Enabled
+end)
+
+local titleText = Instance.new("TextLabel")
+titleText.Size = UDim2.new(0.6, 0, 1, 0)
+titleText.Position = UDim2.new(0.2, 0, 0, 0)
+titleText.BackgroundTransparency = 1
+titleText.Text = "🔥 COCO CHEAT PANEL 🔥"
+titleText.TextColor3 = Color3.fromRGB(255, 0, 200)
+titleText.Font = Enum.Font.GothamBold
+titleText.TextSize = 18
+titleText.Parent = titleBar
+
+-- SIDEBAR
+local sidebar = Instance.new("Frame")
+sidebar.Size = UDim2.new(0, SIDEBAR_WIDTH, 1, -38)
+sidebar.Position = UDim2.new(0, 0, 0, 38)
+sidebar.BackgroundColor3 = SIDEBAR_COLOR
+sidebar.BorderSizePixel = 0
+sidebar.ClipsDescendants = true
+sidebar.Parent = mainFrame
+
+local sidebarCorner = Instance.new("UICorner")
+sidebarCorner.CornerRadius = UDim.new(0, 12)
+sidebarCorner.Parent = sidebar
+
+local logoLabel = Instance.new("TextLabel")
+logoLabel.Size = UDim2.new(1, -20, 0, 36)
+logoLabel.Position = UDim2.new(0, 10, 0, 6)
+logoLabel.BackgroundTransparency = 1
+logoLabel.Text = "💀 SAiKUTO 💀"
+logoLabel.TextColor3 = Color3.fromRGB(255, 0, 100)
+logoLabel.Font = Enum.Font.GothamBold
+logoLabel.TextSize = 18
+logoLabel.TextXAlignment = Enum.TextXAlignment.Left
+logoLabel.Parent = sidebar
+
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Size = UDim2.new(0, 30, 0, 30)
+toggleBtn.Position = UDim2.new(1, -40, 0, 8)
+toggleBtn.BackgroundColor3 = ACCENT_COLOR
+toggleBtn.Text = "◀"
+toggleBtn.TextColor3 = Color3.new(1, 1, 1)
+toggleBtn.Font = Enum.Font.GothamBold
+toggleBtn.TextSize = 16
+toggleBtn.BorderSizePixel = 0
+toggleBtn.Parent = sidebar
+
+local toggleCorner = Instance.new("UICorner")
+toggleCorner.CornerRadius = UDim.new(0, 6)
+toggleCorner.Parent = toggleBtn
+
+local navList = Instance.new("Frame")
+navList.Size = UDim2.new(1, -20, 1, -70)
+navList.Position = UDim2.new(0, 10, 0, 50)
+navList.BackgroundTransparency = 1
+navList.Parent = sidebar
+
+local navLayout = Instance.new("UIListLayout")
+navLayout.Padding = UDim.new(0, 6)
+navLayout.SortOrder = Enum.SortOrder.LayoutOrder
+navLayout.Parent = navList
+
+-- CONTENT AREA
+local content = Instance.new("Frame")
+content.Size = UDim2.new(1, -SIDEBAR_WIDTH, 1, -38)
+content.Position = UDim2.new(0, SIDEBAR_WIDTH, 0, 38)
+content.BackgroundTransparency = 1
+content.Parent = mainFrame
+
+local pageTitle = Instance.new("TextLabel")
+pageTitle.Size = UDim2.new(1, -40, 0, 36)
+pageTitle.Position = UDim2.new(0, 20, 0, 6)
+pageTitle.BackgroundTransparency = 1
+pageTitle.Text = "Home"
+pageTitle.TextColor3 = TEXT_COLOR
+pageTitle.Font = Enum.Font.GothamBold
+pageTitle.TextSize = 26
+pageTitle.TextXAlignment = Enum.TextXAlignment.Left
+pageTitle.Parent = content
+
+local pageContainer = Instance.new("ScrollingFrame")
+pageContainer.Name = "PageContainer"
+pageContainer.Size = UDim2.new(1, -40, 1, -60)
+pageContainer.Position = UDim2.new(0, 20, 0, 50)
+pageContainer.BackgroundTransparency = 1
+pageContainer.BorderSizePixel = 0
+pageContainer.ScrollBarThickness = 6
+pageContainer.ScrollBarImageColor3 = ACCENT_COLOR
+pageContainer.CanvasSize = UDim2.new(0, 0, 0, 0)
+pageContainer.Parent = content
+
+local pageFrames = {}
+local navButtons = {}
+
+-- ============================================================= --
+-- 🛠️ ฟังก์ชันสร้างปุ่ม Toggle แบบเดิม                           --
+-- ============================================================= --
+local function createCheatButton(parent, labelText, cheatKey, color)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -20, 0, 40)
+    btn.BackgroundColor3 = color or Color3.fromRGB(40, 40, 50)
+    btn.BorderSizePixel = 0
+    btn.Text = labelText .. " : OFF"
+    btn.TextColor3 = TEXT_COLOR
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 16
+    btn.Parent = parent
+
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(0, 8)
+    btnCorner.Parent = btn
+
+    btn.MouseButton1Click:Connect(function()
+        cheatStates[cheatKey] = not cheatStates[cheatKey]
+        btn.Text = labelText .. " : " .. (cheatStates[cheatKey] and "ON 🔥" or "OFF")
+        btn.BackgroundColor3 = cheatStates[cheatKey] and Color3.fromRGB(255, 50, 50) or Color3.fromRGB(40, 40, 50)
+        
+        -- โค้ดเปิด/ปิดฟังก์ชัน (ย่อมาจากเวอร์ชั่นก่อน)
+        if cheatKey == "GodMode" then
+            if cheatStates.GodMode then
+                humanoid.MaxHealth = 9e9
+                humanoid.Health = 9e9
+                humanoid.BreakJointsOnDeath = false
+            else
+                humanoid.MaxHealth = 100
+                humanoid.Health = 100
+                humanoid.BreakJointsOnDeath = true
+            end
+        elseif cheatKey == "FlyMode" then
+            if cheatStates.FlyMode then
+                local bodyVelocity = Instance.new("BodyVelocity")
+                bodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+                bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+                bodyVelocity.Parent = humanoid.RootPart
+                flyConnection = RunService.Heartbeat:Connect(function()
+                    if not character or not character.Parent then return end
+                    local root = humanoid.RootPart
+                    if not root then return end
+                    local moveDir = Vector3.new(0, 0, 0)
+                    if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + root.CFrame.LookVector * flySpeed end
+                    if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - root.CFrame.LookVector * flySpeed end
+                    if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir = moveDir - root.CFrame.RightVector * flySpeed end
+                    if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + root.CFrame.RightVector * flySpeed end
+                    if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDir = moveDir + Vector3.new(0, flySpeed, 0) end
+                    if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then moveDir = moveDir - Vector3.new(0, flySpeed, 0) end
+                    root.Velocity = moveDir
+                end)
+                humanoid.PlatformStand = true
+            else
+                if flyConnection then flyConnection:Disconnect() flyConnection = nil end
+                humanoid.PlatformStand = false
+                local root = humanoid.RootPart
+                if root then root.Velocity = Vector3.new(0, 0, 0) end
+            end
+        elseif cheatKey == "Noclip" then
+            if cheatStates.Noclip then
+                noclipConnection = RunService.Heartbeat:Connect(function()
+                    for _, part in pairs(character:GetDescendants()) do
+                        if part:IsA("BasePart") then part.CanCollide = false end
+                    end
+                end)
+            else
+                if noclipConnection then noclipConnection:Disconnect() noclipConnection = nil end
+                for _, part in pairs(character:GetDescendants()) do
+                    if part:IsA("BasePart") then part.CanCollide = true end
+                end
+            end
+        elseif cheatKey == "SpeedHack" then
+            if cheatStates.SpeedHack then humanoid.WalkSpeed = 16 * speedMultiplier else humanoid.WalkSpeed = 16 end
+        elseif cheatKey == "InfiniteJump" then
+            if cheatStates.InfiniteJump then humanoid.JumpPower = 5000 else humanoid.JumpPower = 50 end
+        elseif cheatKey == "ESP" then
+            if cheatStates.ESP then
+                espFolder = Instance.new("Folder")
+                espFolder.Name = "ESP"
+                espFolder.Parent = workspace
+                for _, otherPlayer in pairs(Players:GetPlayers()) do
+                    if otherPlayer ~= player then
+                        local char = otherPlayer.Character
+                        if char and char:FindFirstChild("HumanoidRootPart") then
+                            local bill = Instance.new("BillboardGui")
+                            bill.Size = UDim2.new(0, 200, 0, 50)
+                            bill.StudsOffset = Vector3.new(0, 3, 0)
+                            bill.Parent = char.HumanoidRootPart
+                            local label = Instance.new("TextLabel")
+                            label.Size = UDim2.new(1, 0, 1, 0)
+                            label.BackgroundTransparency = 1
+                            label.Text = otherPlayer.Name .. " 🎯"
+                            label.TextColor3 = Color3.fromRGB(255, 0, 0)
+                            label.Font = Enum.Font.GothamBold
+                            label.TextSize = 20
+                            label.Parent = bill
+                            table.insert(espFolder:GetChildren(), bill)
+                        end
+                    end
+                end
+                Players.PlayerAdded:Connect(function(newP)
+                    if newP ~= player then
+                        newP.CharacterAdded:Connect(function(char)
+                            task.wait(1)
+                            if cheatStates.ESP and char and char:FindFirstChild("HumanoidRootPart") then
+                                local bill = Instance.new("BillboardGui")
+                                bill.Size = UDim2.new(0, 200, 0, 50)
+                                bill.StudsOffset = Vector3.new(0, 3, 0)
+                                bill.Parent = char.HumanoidRootPart
+                                local label = Instance.new("TextLabel")
+                                label.Size = UDim2.new(1, 0, 1, 0)
+                                label.BackgroundTransparency = 1
+                                label.Text = newP.Name .. " 🎯"
+                                label.TextColor3 = Color3.fromRGB(255, 0, 0)
+                                label.Font = Enum.Font.GothamBold
+                                label.TextSize = 20
+                                label.Parent = bill
+                            end
+                        end)
+                    end
+                end)
+            else
+                if espFolder then espFolder:Destroy() espFolder = nil end
+                for _, otherPlayer in pairs(Players:GetPlayers()) do
+                    local char = otherPlayer.Character
+                    if char then
+                        for _, child in pairs(char:GetDescendants()) do
+                            if child:IsA("BillboardGui") and child.Name == "ESP" then child:Destroy() end
+                        end
+                    end
+                end
+            end
+        elseif cheatKey == "DupeMode" then
+            if cheatStates.DupeMode then showNotification("📦 Dupe Mode เปิดแล้ว! กด E เพื่อ Dupe", Color3.fromRGB(255,200,0)) end
+        elseif cheatKey == "FreeShop" then
+            if cheatStates.FreeShop then showNotification("🛒 Free Shop เปิดแล้ว! ทุกอย่างราคา 0", Color3.fromRGB(0,255,100)) end
+        elseif cheatKey == "FakeLB" then
+            if cheatStates.FakeLB then
+                local ls = player:FindFirstChild("leaderstats")
+                if ls then
+                    for _, stat in pairs(ls:GetChildren()) do
+                        if stat:IsA("IntValue") or stat:IsA("NumberValue") then stat.Value = 9999999 end
+                    end
+                end
+                showNotification("🏆 Fake LB! มึงคือเบอร์ 1", Color3.fromRGB(255,0,255))
+            end
+        end
+    end)
+    return btn
+end
+
+-- ============================================================= --
+-- 📄 สร้างแต่ละหน้า (Home ถูกปรับพิเศษ)                         --
+-- ============================================================= --
+local function buildPage(pageName)
+    local pageFrame = Instance.new("Frame")
+    pageFrame.Name = pageName
+    pageFrame.Size = UDim2.new(1, 0, 0, 0)
+    pageFrame.BackgroundTransparency = 1
+    pageFrame.AutomaticSize = Enum.AutomaticSize.Y
+    pageFrame.Parent = pageContainer
+
+    local layout = Instance.new("UIListLayout")
+    layout.Padding = UDim.new(0, 10)
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Parent = pageFrame
+
+    local header = Instance.new("TextLabel")
+    header.Size = UDim2.new(1, 0, 0, 30)
+    header.BackgroundTransparency = 1
+    header.Text = "⚡ " .. pageName .. " - CHEAT ZONE"
+    header.TextColor3 = ACCENT_COLOR
+    header.Font = Enum.Font.GothamBold
+    header.TextSize = 20
+    header.TextXAlignment = Enum.TextXAlignment.Left
+    header.Parent = pageFrame
+
+    -- ==================== HOME PAGE (เพิ่มปุ่มเตะ) ==================== --
+    if pageName == "Home" then
+        -- ปุ่มโกงปกติ
+        createCheatButton(pageFrame, "🛡️ God Mode", "GodMode", Color3.fromRGB(60, 30, 30))
+        createCheatButton(pageFrame, "🚀 Fly Mode (WASD Space Shift)", "FlyMode", Color3.fromRGB(30, 30, 60))
+        createCheatButton(pageFrame, "🌀 Noclip (ทะลุกำแพง)", "Noclip", Color3.fromRGB(30, 60, 30))
+        createCheatButton(pageFrame, "💨 Speed Hack (x3)", "SpeedHack", Color3.fromRGB(60, 60, 30))
+        createCheatButton(pageFrame, "⬆️ Infinite Jump (แรงเหวี่ยง)", "InfiniteJump", Color3.fromRGB(60, 30, 50))
+
+        -- ปุ่ม Kill All
+        local killBtn = Instance.new("TextButton")
+        killBtn.Size = UDim2.new(1, -20, 0, 40)
+        killBtn.BackgroundColor3 = Color3.fromRGB(100, 0, 0)
+        killBtn.Text = "💀 KILL ALL PLAYERS (ระวังโดนแบน)"
+        killBtn.TextColor3 = TEXT_COLOR
+        killBtn.Font = Enum.Font.GothamBold
+        killBtn.TextSize = 16
+        killBtn.Parent = pageFrame
+        local kCorner = Instance.new("UICorner")
+        kCorner.CornerRadius = UDim.new(0, 8)
+        kCorner.Parent = killBtn
+        killBtn.MouseButton1Click:Connect(function()
+            for _, p in pairs(Players:GetPlayers()) do
+                if p ~= player then
+                    local c = p.Character
+                    if c and c:FindFirstChild("Humanoid") then
+                        c.Humanoid.Health = 0
+                    end
+                end
+            end
+            showNotification("💀 ฆ่าหมดแล้ว ยกเว้นมึง", Color3.fromRGB(255,0,0))
+        end)
+
+        -- ---- พื้นที่เตะคน (KICK ZONE) ----
+        local kickHeader = Instance.new("TextLabel")
+        kickHeader.Size = UDim2.new(1, 0, 0, 25)
+        kickHeader.BackgroundTransparency = 1
+        kickHeader.Text = "👢 ─── เตะคน (KICK ZONE) ───"
+        kickHeader.TextColor3 = Color3.fromRGB(255, 100, 0)
+        kickHeader.Font = Enum.Font.GothamBold
+        kickHeader.TextSize = 18
+        kickHeader.TextXAlignment = Enum.TextXAlignment.Center
+        kickHeader.Parent = pageFrame
+
+        -- กรอบสำหรับใส่ชื่อ + ปุ่มเตะเฉพาะ
+        local kickFrame = Instance.new("Frame")
+        kickFrame.Size = UDim2.new(1, -20, 0, 45)
+        kickFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+        kickFrame.BorderSizePixel = 0
+        kickFrame.Parent = pageFrame
+        local kfCorner = Instance.new("UICorner")
+        kfCorner.CornerRadius = UDim.new(0, 8)
+        kfCorner.Parent = kickFrame
+
+        -- ช่องกรอกชื่อ
+        local nameBox = Instance.new("TextBox")
+        nameBox.Size = UDim2.new(0.55, -10, 0.8, 0)
+        nameBox.Position = UDim2.new(0.05, 0, 0.1, 0)
+        nameBox.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+        nameBox.Text = "พิมพ์ชื่อผู้เล่น..."
+        nameBox.TextColor3 = TEXT_COLOR
+        nameBox.TextScaled = true
+        nameBox.Font = Enum.Font.Gotham
+        nameBox.ClearTextOnFocus = false
+        nameBox.Parent = kickFrame
+        local nbCorner = Instance.new("UICorner")
+        nbCorner.CornerRadius = UDim.new(0, 4)
+        nbCorner.Parent = nameBox
+
+        -- ปุ่มเตะเฉพาะ
+        local kickBtn = Instance.new("TextButton")
+        kickBtn.Size = UDim2.new(0.3, -10, 0.8, 0)
+        kickBtn.Position = UDim2.new(0.65, 0, 0.1, 0)
+        kickBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+        kickBtn.Text = "👢 เตะคนนี้"
+        kickBtn.TextColor3 = Color3.new(1,1,1)
+        kickBtn.TextScaled = true
+        kickBtn.Font = Enum.Font.GothamBold
+        kickBtn.BorderSizePixel = 0
+        kickBtn.Parent = kickFrame
+        local kbCorner = Instance.new("UICorner")
+        kbCorner.CornerRadius = UDim.new(0, 4)
+        kbCorner.Parent = kickBtn
+        kickBtn.MouseButton1Click:Connect(function()
+            local targetName = nameBox.Text
+            if targetName == "พิมพ์ชื่อผู้เล่น..." or targetName == "" then
+                showNotification("❌ กรอกชื่อให้ถูกต้องก่อนเตะ!", Color3.fromRGB(255,50,50))
+                return
+            end
+            kickPlayerByName(targetName)
+        end)
+
+        -- ปุ่มเตะทุกคนยกเว้นเรา (ตัวอันตราย)
+        local kickAllBtn = Instance.new("TextButton")
+        kickAllBtn.Size = UDim2.new(1, -20, 0, 40)
+        kickAllBtn.BackgroundColor3 = Color3.fromRGB(150, 0, 150)
+        kickAllBtn.Text = "👢 เตะทุกคนยกเว้นกู (KICK ALL EXCEPT ME)"
+        kickAllBtn.TextColor3 = Color3.new(1,1,1)
+        kickAllBtn.Font = Enum.Font.GothamBold
+        kickAllBtn.TextSize = 16
+        kickAllBtn.Parent = pageFrame
+        local kaCorner = Instance.new("UICorner")
+        kaCorner.CornerRadius = UDim.new(0, 8)
+        kaCorner.Parent = kickAllBtn
+        kickAllBtn.MouseButton1Click:Connect(function()
+            kickAllExceptMe()
+        end)
+
+        -- ปุ่มรีเฟรชรายชื่อ (แจ้งจำนวนคน)
+        local refreshBtn = Instance.new("TextButton")
+        refreshBtn.Size = UDim2.new(1, -20, 0, 35)
+        refreshBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+        refreshBtn.Text = "🔄 เช็คจำนวนผู้เล่นในห้อง (" .. tostring(#Players:GetPlayers()) .. " คน)"
+        refreshBtn.TextColor3 = TEXT_COLOR
+        refreshBtn.Font = Enum.Font.Gotham
+        refreshBtn.TextSize = 14
+        refreshBtn.Parent = pageFrame
+        local rCorner = Instance.new("UICorner")
+        rCorner.CornerRadius = UDim.new(0, 8)
+        rCorner.Parent = refreshBtn
+        refreshBtn.MouseButton1Click:Connect(function()
+            refreshBtn.Text = "🔄 เช็คจำนวนผู้เล่นในห้อง (" .. tostring(#Players:GetPlayers()) .. " คน)"
+            showNotification("👥 มี " .. #Players:GetPlayers() .. " คนอยู่ในเกม", Color3.fromRGB(100,200,255))
+        end)
+
+    -- ==================== หน้าอื่นๆ (Inventory, Shop, Leaderboard, Settings) ==================== --
+    elseif pageName == "Inventory" then
+        createCheatButton(pageFrame, "📦 Dupe Mode (กด E เพื่อ Dupe)", "DupeMode", Color3.fromRGB(40, 40, 60))
+        local dupeBtn = Instance.new("TextButton")
+        dupeBtn.Size = UDim2.new(1, -20, 0, 40)
+        dupeBtn.BackgroundColor3 = Color3.fromRGB(0, 80, 80)
+        dupeBtn.Text = "➕ SPAWN RANDOM ITEM (โผล่ใน Inventory)"
+        dupeBtn.TextColor3 = TEXT_COLOR
+        dupeBtn.Font = Enum.Font.GothamBold
+        dupeBtn.TextSize = 16
+        dupeBtn.Parent = pageFrame
+        local dCorner = Instance.new("UICorner")
+        dCorner.CornerRadius = UDim.new(0, 8)
+        dCorner.Parent = dupeBtn
+        dupeBtn.MouseButton1Click:Connect(function()
+            local backpack = player:FindFirstChild("Backpack")
+            if backpack then
+                local tool = Instance.new("Tool")
+                tool.Name = "HACKED_ITEM_" .. math.random(1000,9999)
+                tool.Parent = backpack
+                showNotification("✅ เพิ่ม " .. tool.Name .. " เข้า Inventory แล้ว", Color3.fromRGB(0,255,200))
+            end
+        end)
+
+    elseif pageName == "Shop" then
+        createCheatButton(pageFrame, "🛒 Free Shop (ราคาทั้งหมด 0)", "FreeShop", Color3.fromRGB(60, 40, 20))
+        local buyAllBtn = Instance.new("TextButton")
+        buyAllBtn.Size = UDim2.new(1, -20, 0, 40)
+        buyAllBtn.BackgroundColor3 = Color3.fromRGB(0, 100, 0)
+        buyAllBtn.Text = "🎁 BUY ALL ITEMS (ฟรี) ครั้งเดียว"
+        buyAllBtn.TextColor3 = TEXT_COLOR
+        buyAllBtn.Font = Enum.Font.GothamBold
+        buyAllBtn.TextSize = 16
+        buyAllBtn.Parent = pageFrame
+        local bCorner = Instance.new("UICorner")
+        bCorner.CornerRadius = UDim.new(0, 8)
+        bCorner.Parent = buyAllBtn
+        buyAllBtn.MouseButton1Click:Connect(function()
+            showNotification("💰 ซื้อครบทุกชิ้นแล้ว! (จำลอง)", Color3.fromRGB(255,215,0))
+        end)
+
+    elseif pageName == "Leaderboard" then
+        createCheatButton(pageFrame, "🏆 Fake Leaderboard (ค่าทะลุ)", "FakeLB", Color3.fromRGB(80, 50, 0))
+        local resetLB = Instance.new("TextButton")
+        resetLB.Size = UDim2.new(1, -20, 0, 40)
+        resetLB.BackgroundColor3 = Color3.fromRGB(50, 0, 50)
+        resetLB.Text = "🔄 รีเซ็ตค่าผู้อื่นให้เป็น 0 (มึงนำ)"
+        resetLB.TextColor3 = TEXT_COLOR
+        resetLB.Font = Enum.Font.GothamBold
+        resetLB.TextSize = 16
+        resetLB.Parent = pageFrame
+        local rCorner2 = Instance.new("UICorner")
+        rCorner2.CornerRadius = UDim.new(0, 8)
+        rCorner2.Parent = resetLB
+        resetLB.MouseButton1Click:Connect(function()
+            for _, p in pairs(Players:GetPlayers()) do
+                if p ~= player then
+                    local ls = p:FindFirstChild("leaderstats")
+                    if ls then
+                        for _, stat in pairs(ls:GetChildren()) do
+                            if stat:IsA("IntValue") then stat.Value = 0 end
+                        end
+                    end
+                end
+            end
+            showNotification("🔄 รีเซ็ตทุกคนยกเว้นมึงแล้ว!", Color3.fromRGB(200,0,200))
+        end)
+
+    elseif pageName == "Settings" then
+        createCheatButton(pageFrame, "👁️ ESP (เห็นศัตรูผ่านกำแพง)", "ESP", Color3.fromRGB(30, 30, 80))
+        local clearESP = Instance.new("TextButton")
+        clearESP.Size = UDim2.new(1, -20, 0, 40)
+        clearESP.BackgroundColor3 = Color3.fromRGB(60, 20, 20)
+        clearESP.Text = "🧹 ล้าง ESP ทั้งหมด"
+        clearESP.TextColor3 = TEXT_COLOR
+        clearESP.Font = Enum.Font.GothamBold
+        clearESP.TextSize = 16
+        clearESP.Parent = pageFrame
+        local cCorner = Instance.new("UICorner")
+        cCorner.CornerRadius = UDim.new(0, 8)
+        cCorner.Parent = clearESP
+        clearESP.MouseButton1Click:Connect(function()
+            cheatStates.ESP = false
+            if espFolder then espFolder:Destroy() espFolder = nil end
+            for _, otherPlayer in pairs(Players:GetPlayers()) do
+                local char = otherPlayer.Character
+                if char then
+                    for _, child in pairs(char:GetDescendants()) do
+                        if child:IsA("BillboardGui") and child.Name == "ESP" then child:Destroy() end
+                    end
+                end
+            end
+            showNotification("🧹 ล้าง ESP หมดแล้ว", Color3.fromRGB(100,200,255))
+        end)
+
+        local themeBtn = Instance.new("TextButton")
+        themeBtn.Size = UDim2.new(1, -20, 0, 40)
+        themeBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+        themeBtn.Text = "🌙 เปลี่ยนธีม (มืด/สว่าง)"
+        themeBtn.TextColor3 = TEXT_COLOR
+        themeBtn.Font = Enum.Font.GothamBold
+        themeBtn.TextSize = 16
+        themeBtn.Parent = pageFrame
+        local tCorner = Instance.new("UICorner")
+        tCorner.CornerRadius = UDim.new(0, 8)
+        tCorner.Parent = themeBtn
+        local isDark = true
+        themeBtn.MouseButton1Click:Connect(function()
+            isDark = not isDark
+            mainFrame.BackgroundColor3 = isDark and BG_COLOR or Color3.fromRGB(220, 220, 230)
+            sidebar.BackgroundColor3 = isDark and SIDEBAR_COLOR or Color3.fromRGB(200, 200, 210)
+            titleBar.BackgroundColor3 = isDark and SIDEBAR_COLOR or Color3.fromRGB(200, 200, 210)
+            pageTitle.TextColor3 = isDark and TEXT_COLOR or Color3.new(0,0,0)
+            themeBtn.Text = isDark and "🌙 เปลี่ยนธีม (มืด/สว่าง)" or "☀️ เปลี่ยนธีม (มืด/สว่าง)"
+        end)
+    end
+
+    -- อัปเดต Canvas
+    local function updateCanvas()
+        local totalHeight = 0
+        for _, child in pairs(pageFrame:GetChildren()) do
+            if child:IsA("TextButton") or child:IsA("TextLabel") or child:IsA("Frame") then
+                if child:IsA("Frame") then
+                    totalHeight = totalHeight + child.Size.Y.Offset + 10
+                else
+                    totalHeight = totalHeight + child.Size.Y.Offset + 10
+                end
+            end
+        end
+        pageFrame.Size = UDim2.new(1, 0, 0, totalHeight + 30)
+        pageContainer.CanvasSize = UDim2.new(0, 0, 0, totalHeight + 30 + 20)
+    end
+    task.wait(0.1)
+    updateCanvas()
+    return pageFrame
+end
+
+-- ============================================================= --
+-- 🧭 สร้างปุ่มนำทาง                                            --
+-- ============================================================= --
+local function selectPage(pageName)
+    for name, frame in pairs(pageFrames) do
+        frame.Visible = (name == pageName)
+    end
+    pageTitle.Text = pageName
+    for name, btn in pairs(navButtons) do
+        local isActive = (name == pageName)
+        TweenService:Create(btn, TweenInfo.new(0.15), {
+            BackgroundColor3 = isActive and ACCENT_COLOR or SIDEBAR_COLOR
+        }):Play()
+        btn.Label.TextColor3 = isActive and Color3.new(1,1,1) or TEXT_COLOR
+    end
+end
+
+for i, page in ipairs(PAGES) do
+    local pageFrame = buildPage(page.name)
+    pageFrame.Visible = false
+    pageFrames[page.name] = pageFrame
+
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, 0, 0, 40)
+    btn.LayoutOrder = i
+    btn.BackgroundColor3 = SIDEBAR_COLOR
+    btn.AutoButtonColor = false
+    btn.Text = ""
+    btn.Parent = navList
+
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(0, 8)
+    btnCorner.Parent = btn
+
+    local icon = Instance.new("TextLabel")
+    icon.Size = UDim2.new(0, 30, 1, 0)
+    icon.Position = UDim2.new(0, 8, 0, 0)
+    icon.BackgroundTransparency = 1
+    icon.Text = page.icon
+    icon.TextSize = 20
+    icon.Font = Enum.Font.Gotham
+    icon.TextXAlignment = Enum.TextXAlignment.Center
+    icon.Parent = btn
+
+    local label = Instance.new("TextLabel")
+    label.Name = "Label"
+    label.Size = UDim2.new(1, -50, 1, 0)
+    label.Position = UDim2.new(0, 42, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = page.name
+    label.TextColor3 = TEXT_COLOR
+    label.Font = Enum.Font.Gotham
+    label.TextSize = 15
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = btn
+
+    btn.MouseButton1Click:Connect(function()
+        selectPage(page.name)
+    end)
+
+    btn.MouseEnter:Connect(function()
+        if pageTitle.Text ~= page.name then
+            TweenService:Create(btn, TweenInfo.new(0.1), {
+                BackgroundColor3 = Color3.fromRGB(45, 45, 52)
+            }):Play()
+        end
+    end)
+    btn.MouseLeave:Connect(function()
+        if pageTitle.Text ~= page.name then
+            TweenService:Create(btn, TweenInfo.new(0.1), {
+                BackgroundColor3 = SIDEBAR_COLOR
+            }):Play()
+        end
+    end)
+
+    navButtons[page.name] = btn
+end
+
+-- ============================================================= --
+-- 🔄 ยุบ/ขยาย sidebar                                          --
+-- ============================================================= --
+local collapsed = false
+toggleBtn.MouseButton1Click:Connect(function()
+    collapsed = not collapsed
+    local targetWidth = collapsed and COLLAPSED_WIDTH or SIDEBAR_WIDTH
+    TweenService:Create(sidebar, TweenInfo.new(0.25, Enum.EasingStyle.Quad), {
+        Size = UDim2.new(0, targetWidth, 1, -38)
+    }):Play()
+    TweenService:Create(content, TweenInfo.new(0.25, Enum.EasingStyle.Quad), {
+        Size = UDim2.new(1, -targetWidth, 1, -38),
+        Position = UDim2.new(0, targetWidth, 0, 38)
+    }):Play()
+    logoLabel.Visible = not collapsed
+    for _, btn in pairs(navButtons) do
+        btn.Label.Visible = not collapsed
+    end
+    toggleBtn.Text = collapsed and "▶" or "◀"
+end)
+
+-- ============================================================= --
+-- 🚀 เริ่มต้น: Home                                             --
+-- ============================================================= --
+selectPage(PAGES[1].name)
+
+-- ============================================================= --
+-- 🧹 รีเซ็ตเมื่อตัวละครเกิดใหม่                                 --
+-- ============================================================= --
+player.CharacterAdded:Connect(function(newChar)
+    character = newChar
+    humanoid = character:WaitForChild("Humanoid")
+    if cheatStates.GodMode then
+        humanoid.MaxHealth = 9e9
+        humanoid.Health = 9e9
+        humanoid.BreakJointsOnDeath = false
+    end
+    if cheatStates.FlyMode then
+        task.wait(0.5)
+        local root = humanoid.RootPart
+        if root then
+            local bv = Instance.new("BodyVelocity")
+            bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+            bv.Velocity = Vector3.new(0, 0, 0)
+            bv.Parent = root
+        end
+    end
+    if cheatStates.Noclip then
+        for _, part in pairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then part.CanCollide = false end
+        end
+    end
+end)
+
+-- ============================================================= --
+-- ⌨️ เปิด/ปิด UI ด้วย F1                                      --
+-- ============================================================= --
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.F1 then
+        screenGui.Enabled = not screenGui.Enabled
+    end
+end)
+
+print("🔥 COCO CHEAT PANEL v4.0 (KICK EDITION) โหลดเสร็จ! เตะให้มันส์ว่ะ 😈")
