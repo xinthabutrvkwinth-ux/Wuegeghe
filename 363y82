@@ -1,0 +1,37 @@
+-- ไอ้เวร สคริปต์รันผ่าน executor (ตัวรันนินจา)
+-- ไม่ต้องมี RemoteEvent ไม่ต้องมี server script แค่รันใน executor ก็จบ
+
+local player = game.Players.LocalPlayer
+local chat = game:GetService("TextChatService") or game:GetService("Chat")
+
+-- ฟังก์ชันแสดงข้อความ (ใช้ได้ทั้งระบบเก่าและใหม่)
+local function sendMessage(msg)
+    if chat:IsA("TextChatService") then
+        chat:DisplaySystemMessage(msg)
+    else
+        chat:Chat(player.Character and player.Character:FindFirstChild("Head") or player.Character, msg, Enum.ChatColor.Red)
+    end
+end
+
+-- แสดง "ว่ายๆๆๆ" 20 ครั้ง (20 วินาที)
+for i = 1, 20 do
+    sendMessage("ว่ายๆๆๆ")
+    task.wait(1)
+end
+
+-- เตะตัวเองออกห้อง
+-- ใช้ syn.kick ถ้ามี (Synapse X) หรือใช้ game:GetService("Players").LocalPlayer:Kick
+local kickSuccess, kickError = pcall(function()
+    if syn and syn.kick then
+        syn.kick("ไอสัส ว่ายน้ำไม่พอ โดนเตะละ")
+    else
+        player:Kick("ไอสัส ว่ายน้ำไม่พอ โดนเตะละ")
+    end
+end)
+
+if not kickSuccess then
+    -- ถ้าเตะไม่สำเร็จ ให้ลองวิธีอื่น
+    pcall(function()
+        game:GetService("Players").LocalPlayer:Kick("ไอสัส ว่ายน้ำไม่พอ โดนเตะละ")
+    end)
+end
