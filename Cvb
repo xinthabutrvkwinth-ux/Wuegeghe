@@ -1,0 +1,411 @@
+-- 🥷 UI Sidebar Executor โดย Saikuto
+-- ข้อดี: ดีไซน์ Sidebar Navigation, บันทึกสคริปต์, คัดลอก, ล้างกล่องข้อความ, รัน/หยุด, UI ลากได้, ขอบมน
+-- 🔨 ออกแบบให้ sidebar อยู่ซ้าย มีปุ่มเรียงแนวตั้ง ส่วนพื้นที่ด้านขวาเป็น editor พร้อมปุ่มเสริมด้านล่าง
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "SaikutoSidebar_👾"
+gui.Parent = game.CoreGui
+gui.ResetOnSpawn = false
+
+-- 🌚 กรอบหลัก (ใหญ่ขึ้นเพื่อรองรับ sidebar)
+local main = Instance.new("Frame")
+main.Size = UDim2.new(0, 600, 0, 400)
+main.Position = UDim2.new(0.5, -300, 0.5, -200)
+main.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+main.BorderSizePixel = 0
+main.Active = true
+main.Draggable = true
+main.Parent = gui
+
+-- 🕷️ มุมมนให้กรอบหลัก
+local cornerMain = Instance.new("UICorner")
+cornerMain.CornerRadius = UDim.new(0, 14)
+cornerMain.Parent = main
+
+-- ❄️ SIDEBAR (ซ้าย) --------------------------------------------------
+local sidebar = Instance.new("Frame")
+sidebar.Size = UDim2.new(0, 130, 1, 0)   -- กว้าง 130px, สูงเต็มกรอบ
+sidebar.Position = UDim2.new(0, 0, 0, 0)
+sidebar.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+sidebar.BorderSizePixel = 0
+sidebar.Parent = main
+
+-- 👽 มุมมนเฉพาะซ้ายของ sidebar (ใช้ UICorner ครอบคลุมเฉพาะด้านซ้ายไม่ได้, เลยแปะ UIListLayout)
+-- 🦠 เรียงปุ่มแนวตั้งด้วย UIListLayout
+local listLayout = Instance.new("UIListLayout")
+listLayout.Parent = sidebar
+listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+listLayout.Padding = UDim.new(0, 8)
+
+-- 🔨 เพิ่ม padding บน
+local topPadding = Instance.new("UIPadding")
+topPadding.PaddingTop = UDim.new(0, 12)
+topPadding.Parent = sidebar
+
+-- ฟังก์ชันสร้างปุ่มใน sidebar แบบเร็ว
+local function createSideButton(name, text, color, order)
+	local btn = Instance.new("TextButton")
+	btn.Name = name
+	btn.Size = UDim2.new(1, -16, 0, 36)
+	btn.BackgroundColor3 = color or Color3.fromRGB(60, 60, 60)
+	btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	btn.Font = Enum.Font.SourceSansBold
+	btn.TextSize = 14
+	btn.Text = text
+	btn.BorderSizePixel = 0
+	btn.LayoutOrder = order
+	btn.Parent = sidebar
+	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+	return btn
+end
+
+-- สร้างปุ่มต่าง ๆ ใน sidebar
+local btnRun = createSideButton("Run", "Run 🔨", Color3.fromRGB(34, 139, 34), 1)
+local btnStop = createSideButton("Stop", "Stop ❤️‍🩹", Color3.fromRGB(178, 34, 34), 2)
+local btnSave = createSideButton("Save", "Save 💾", Color3.fromRGB(70, 130, 180), 3)
+local btnCopy = createSideButton("Copy", "Copy 👾", Color3.fromRGB(100, 149, 237), 4)
+local btnClear = createSideButton("Clear", "Clear 🧹", Color3.fromRGB(184, 134, 11), 5)
+
+-- ❄️ พื้นที่ EDITOR (ขวา) --------------------------------------------
+local editorFrame = Instance.new("Frame")
+editorFrame.Size = UDim2.new(1, -130, 1, 0)
+editorFrame.Position = UDim2.new(0, 130, 0, 0)
+editorFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+editorFrame.BorderSizePixel = 0
+editorFrame.Parent = main
+
+-- 🦠 กล่องข้อความหลายบรรทัด
+local scriptBox = Instance.new("TextBox")
+scriptBox.Size = UDim2.new(1, -20, 1, -50)
+scriptBox.Position = UDim2.new(0, 10, 0, 5)
+scriptBox.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+scriptBox.TextColor3 = Color3.fromRGB(0, 255, 100)
+scriptBox.Font = Enum.Font.Code
+scriptBox.TextSize = 14
+scriptBox.ClearTextOnFocus = false
+scriptBox.MultiLine = true
+scriptBox.Text = "-- 👽 วางสคริปต์ที่นี่..."
+scriptBox.Parent = editorFrame
+Instance.new("UICorner", scriptBox).CornerRadius = UDim.new(0, 8)
+
+-- 🌚 แถบสถานะเล็ก ๆ ด้านล่าง editor
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size = UDim2.new(1, 0, 0, 20)
+statusLabel.Position = UDim2.new(0, 0, 1, -25)
+statusLabel.BackgroundTransparency = 1
+statusLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
+statusLabel.Font = Enum.Font.SourceSans
+statusLabel.TextSize = 12
+statusLabel.Text = ""
+statusLabel.Parent = editorFrame
+
+-- 🕷️ ตรรกะรัน/หยุด ------------------------------------------------
+local isLooping = false
+local loopThread = nil
+
+local function execute()
+	local code = scriptBox.Text
+	local f, err = loadstring(code)
+	if not f then
+		warn("❄️ Syntax Error: " .. err)
+		return
+	end
+	local ok, runErr = pcall(f)
+	if not ok then
+		warn("🕷️ Runtime Error: " .. runErr)
+	end
+end
+
+btnRun.MouseButton1Click:Connect(function()
+	if isLooping then return end
+	isLooping = true
+	loopThread = task.spawn(function()
+		while isLooping do
+			execute()
+			task.wait(0.05)
+		end
+	end)
+	statusLabel.Text = "▶️ กำลังรันลูป..."
+end)
+
+btnStop.MouseButton1Click:Connect(function()
+	isLooping = false
+	if loopThread then
+		task.cancel(loopThread)
+		loopThread = nil
+	end
+	statusLabel.Text = "⏹️ หยุดแล้ว"
+	task.wait(1.5)
+	statusLabel.Text = ""
+end)
+
+-- 🥷 บันทึกสคริปต์ (เซฟลงไฟล์) -----------------------------------
+btnSave.MouseButton1Click:Connect(function()
+	local content = scriptBox.Text
+	if content == "" then
+		statusLabel.Text = "⚠️ ไม่มีข้อความให้บันทึก"
+		task.wait(2)
+		statusLabel.Text = ""
+		return
+	end
+	local success, err = pcall(function()
+		writefile("SaikutoScript_" .. os.time() .. ".lua", content)
+	end)
+	if success then
+		statusLabel.Text = "💾 บันทึกสำเร็จ (SaikutoScript_" .. os.time() .. ".lua)"
+	else
+		statusLabel.Text = "❌ บันทึกไม่สำเร็จ: " .. tostring(err)
+	end
+	task.wait(3)
+	statusLabel.Text = ""
+end)
+
+-- 👾 คัดลอกไปคลิปบอร์ด --------------------------------------------
+btnCopy.MouseButton1Click:Connect(function()
+	local txt = scriptBox.Text
+	if txt == "" then
+		statusLabel.Text = "📋 ไม่มีอะไรให้คัดลอก"
+		task.wait(2)
+		statusLabel.Text = ""
+		return
+	end
+	local ok, err = pcall(setclipboard, txt)
+	if ok then
+		statusLabel.Text = "✅ คัดลอกไปยังคลิปบอร์ดแล้ว"
+	else
+		-- fallback เขียนไฟล์
+		pcall(writefile, "clipboard_fallback.txt", txt)
+		statusLabel.Text = "📁 setclipboard ไม่พร้อม เขียนลงไฟล์แทน"
+	end
+	task.wait(2)
+	statusLabel.Text = ""
+end)
+
+-- 🧹 ล้างกล่องข้อความทั้งหมด ---------------------------------------
+btnClear.MouseButton1Click:Connect(function()
+	scriptBox.Text = ""
+	statusLabel.Text = "🧹 ล้างข้อความเรียบร้อย"
+	task.wait(1.5)
+	statusLabel.Text = ""
+end)
+
+-- ❤️‍🩹 ปุ่ม X ปิด UI (มุมขวาบน)
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.new(0, 30, 0, 30)
+closeBtn.Position = UDim2.new(1, -6, 0, 6)
+closeBtn.AnchorPoint = Vector2.new(1, 0)
+closeBtn.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeBtn.Text = "X"
+closeBtn.Font = Enum.Font.SourceSansBold
+closeBtn.TextSize = 16
+closeBtn.Parent = main
+closeBtn.MouseButton1Click:Connect(function()
+	gui:Destroy()
+end)-- 🥷 UI Sidebar Executor โดย Saikuto
+-- ข้อดี: ดีไซน์ Sidebar Navigation, บันทึกสคริปต์, คัดลอก, ล้างกล่องข้อความ, รัน/หยุด, UI ลากได้, ขอบมน
+-- 🔨 ออกแบบให้ sidebar อยู่ซ้าย มีปุ่มเรียงแนวตั้ง ส่วนพื้นที่ด้านขวาเป็น editor พร้อมปุ่มเสริมด้านล่าง
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "SaikutoSidebar_👾"
+gui.Parent = game.CoreGui
+gui.ResetOnSpawn = false
+
+-- 🌚 กรอบหลัก (ใหญ่ขึ้นเพื่อรองรับ sidebar)
+local main = Instance.new("Frame")
+main.Size = UDim2.new(0, 600, 0, 400)
+main.Position = UDim2.new(0.5, -300, 0.5, -200)
+main.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+main.BorderSizePixel = 0
+main.Active = true
+main.Draggable = true
+main.Parent = gui
+
+-- 🕷️ มุมมนให้กรอบหลัก
+local cornerMain = Instance.new("UICorner")
+cornerMain.CornerRadius = UDim.new(0, 14)
+cornerMain.Parent = main
+
+-- ❄️ SIDEBAR (ซ้าย) --------------------------------------------------
+local sidebar = Instance.new("Frame")
+sidebar.Size = UDim2.new(0, 130, 1, 0)   -- กว้าง 130px, สูงเต็มกรอบ
+sidebar.Position = UDim2.new(0, 0, 0, 0)
+sidebar.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+sidebar.BorderSizePixel = 0
+sidebar.Parent = main
+
+-- 👽 มุมมนเฉพาะซ้ายของ sidebar (ใช้ UICorner ครอบคลุมเฉพาะด้านซ้ายไม่ได้, เลยแปะ UIListLayout)
+-- 🦠 เรียงปุ่มแนวตั้งด้วย UIListLayout
+local listLayout = Instance.new("UIListLayout")
+listLayout.Parent = sidebar
+listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+listLayout.Padding = UDim.new(0, 8)
+
+-- 🔨 เพิ่ม padding บน
+local topPadding = Instance.new("UIPadding")
+topPadding.PaddingTop = UDim.new(0, 12)
+topPadding.Parent = sidebar
+
+-- ฟังก์ชันสร้างปุ่มใน sidebar แบบเร็ว
+local function createSideButton(name, text, color, order)
+	local btn = Instance.new("TextButton")
+	btn.Name = name
+	btn.Size = UDim2.new(1, -16, 0, 36)
+	btn.BackgroundColor3 = color or Color3.fromRGB(60, 60, 60)
+	btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	btn.Font = Enum.Font.SourceSansBold
+	btn.TextSize = 14
+	btn.Text = text
+	btn.BorderSizePixel = 0
+	btn.LayoutOrder = order
+	btn.Parent = sidebar
+	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+	return btn
+end
+
+-- สร้างปุ่มต่าง ๆ ใน sidebar
+local btnRun = createSideButton("Run", "Run 🔨", Color3.fromRGB(34, 139, 34), 1)
+local btnStop = createSideButton("Stop", "Stop ❤️‍🩹", Color3.fromRGB(178, 34, 34), 2)
+local btnSave = createSideButton("Save", "Save 💾", Color3.fromRGB(70, 130, 180), 3)
+local btnCopy = createSideButton("Copy", "Copy 👾", Color3.fromRGB(100, 149, 237), 4)
+local btnClear = createSideButton("Clear", "Clear 🧹", Color3.fromRGB(184, 134, 11), 5)
+
+-- ❄️ พื้นที่ EDITOR (ขวา) --------------------------------------------
+local editorFrame = Instance.new("Frame")
+editorFrame.Size = UDim2.new(1, -130, 1, 0)
+editorFrame.Position = UDim2.new(0, 130, 0, 0)
+editorFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+editorFrame.BorderSizePixel = 0
+editorFrame.Parent = main
+
+-- 🦠 กล่องข้อความหลายบรรทัด
+local scriptBox = Instance.new("TextBox")
+scriptBox.Size = UDim2.new(1, -20, 1, -50)
+scriptBox.Position = UDim2.new(0, 10, 0, 5)
+scriptBox.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+scriptBox.TextColor3 = Color3.fromRGB(0, 255, 100)
+scriptBox.Font = Enum.Font.Code
+scriptBox.TextSize = 14
+scriptBox.ClearTextOnFocus = false
+scriptBox.MultiLine = true
+scriptBox.Text = "-- 👽 วางสคริปต์ที่นี่..."
+scriptBox.Parent = editorFrame
+Instance.new("UICorner", scriptBox).CornerRadius = UDim.new(0, 8)
+
+-- 🌚 แถบสถานะเล็ก ๆ ด้านล่าง editor
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size = UDim2.new(1, 0, 0, 20)
+statusLabel.Position = UDim2.new(0, 0, 1, -25)
+statusLabel.BackgroundTransparency = 1
+statusLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
+statusLabel.Font = Enum.Font.SourceSans
+statusLabel.TextSize = 12
+statusLabel.Text = ""
+statusLabel.Parent = editorFrame
+
+-- 🕷️ ตรรกะรัน/หยุด ------------------------------------------------
+local isLooping = false
+local loopThread = nil
+
+local function execute()
+	local code = scriptBox.Text
+	local f, err = loadstring(code)
+	if not f then
+		warn("❄️ Syntax Error: " .. err)
+		return
+	end
+	local ok, runErr = pcall(f)
+	if not ok then
+		warn("🕷️ Runtime Error: " .. runErr)
+	end
+end
+
+btnRun.MouseButton1Click:Connect(function()
+	if isLooping then return end
+	isLooping = true
+	loopThread = task.spawn(function()
+		while isLooping do
+			execute()
+			task.wait(0.05)
+		end
+	end)
+	statusLabel.Text = "▶️ กำลังรันลูป..."
+end)
+
+btnStop.MouseButton1Click:Connect(function()
+	isLooping = false
+	if loopThread then
+		task.cancel(loopThread)
+		loopThread = nil
+	end
+	statusLabel.Text = "⏹️ หยุดแล้ว"
+	task.wait(1.5)
+	statusLabel.Text = ""
+end)
+
+-- 🥷 บันทึกสคริปต์ (เซฟลงไฟล์) -----------------------------------
+btnSave.MouseButton1Click:Connect(function()
+	local content = scriptBox.Text
+	if content == "" then
+		statusLabel.Text = "⚠️ ไม่มีข้อความให้บันทึก"
+		task.wait(2)
+		statusLabel.Text = ""
+		return
+	end
+	local success, err = pcall(function()
+		writefile("SaikutoScript_" .. os.time() .. ".lua", content)
+	end)
+	if success then
+		statusLabel.Text = "💾 บันทึกสำเร็จ (SaikutoScript_" .. os.time() .. ".lua)"
+	else
+		statusLabel.Text = "❌ บันทึกไม่สำเร็จ: " .. tostring(err)
+	end
+	task.wait(3)
+	statusLabel.Text = ""
+end)
+
+-- 👾 คัดลอกไปคลิปบอร์ด --------------------------------------------
+btnCopy.MouseButton1Click:Connect(function()
+	local txt = scriptBox.Text
+	if txt == "" then
+		statusLabel.Text = "📋 ไม่มีอะไรให้คัดลอก"
+		task.wait(2)
+		statusLabel.Text = ""
+		return
+	end
+	local ok, err = pcall(setclipboard, txt)
+	if ok then
+		statusLabel.Text = "✅ คัดลอกไปยังคลิปบอร์ดแล้ว"
+	else
+		-- fallback เขียนไฟล์
+		pcall(writefile, "clipboard_fallback.txt", txt)
+		statusLabel.Text = "📁 setclipboard ไม่พร้อม เขียนลงไฟล์แทน"
+	end
+	task.wait(2)
+	statusLabel.Text = ""
+end)
+
+-- 🧹 ล้างกล่องข้อความทั้งหมด ---------------------------------------
+btnClear.MouseButton1Click:Connect(function()
+	scriptBox.Text = ""
+	statusLabel.Text = "🧹 ล้างข้อความเรียบร้อย"
+	task.wait(1.5)
+	statusLabel.Text = ""
+end)
+
+-- ❤️‍🩹 ปุ่ม X ปิด UI (มุมขวาบน)
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.new(0, 30, 0, 30)
+closeBtn.Position = UDim2.new(1, -6, 0, 6)
+closeBtn.AnchorPoint = Vector2.new(1, 0)
+closeBtn.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeBtn.Text = "X"
+closeBtn.Font = Enum.Font.SourceSansBold
+closeBtn.TextSize = 16
+closeBtn.Parent = main
+closeBtn.MouseButton1Click:Connect(function()
+	gui:Destroy()
+end)
