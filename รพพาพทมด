@@ -1,0 +1,213 @@
+-- โค้ด UI ดูคลิปเวอร์ชั่นมือถือ (จิ๋ว โคตรประหยัดพื้นที่)
+-- วางใน LocalScript ของ StarterPlayerScripts หรือ StarterGui
+-- ไม่เกี่ยวข้องกับสคริปกระโดด/วิ่งเด็ดขาด ไอ้หนู
+
+local player = game.Players.LocalPlayer
+local userInput = game:GetService("UserInputService")
+
+-- ========== สร้าง GUI ==========
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "MobileVideoUI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+-- ========== รายการคลิป (ใส่ ID จริงของมึงได้) ==========
+local videoList = {
+	{name = "Darkour", id = "rbxassetid://18377788151"},
+	{name = "MarkHole", id = "rbxassetid://18377788152"},
+	{name = "ExAndemic", id = "rbxassetid://18377788153"},
+	{name = "Bonus", id = "rbxassetid://18377788154"}
+}
+
+local currentIndex = 1
+local isPlaying = false
+local isMinimized = false
+
+-- ========== เฟรมหลัก ขนาดเล็กเหมาะมือถือ (350x270) ==========
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 350, 0, 270)
+mainFrame.Position = UDim2.new(0.5, -175, 0.5, -135)
+mainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 20)
+mainFrame.BackgroundTransparency = 0.15
+mainFrame.BorderSizePixel = 1
+mainFrame.BorderColor3 = Color3.fromRGB(80, 80, 120)
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = screenGui
+
+-- ========== ปุ่มย่อ (มุมขวาบน) ==========
+local miniBtn = Instance.new("TextButton")
+miniBtn.Name = "MiniBtn"
+miniBtn.Size = UDim2.new(0, 40, 0, 30)
+miniBtn.Position = UDim2.new(0.85, 0, 0.02, 0)
+miniBtn.Text = "⏪"
+miniBtn.BackgroundColor3 = Color3.fromRGB(80, 40, 120)
+miniBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+miniBtn.TextSize = 18
+miniBtn.Font = Enum.Font.GothamBold
+miniBtn.BorderSizePixel = 0
+miniBtn.Parent = mainFrame
+
+-- ========== VideoFrame (ตัวเล่น) ==========
+local videoFrame = Instance.new("VideoFrame")
+videoFrame.Name = "VideoFrame"
+videoFrame.Size = UDim2.new(0.94, 0, 0, 155)
+videoFrame.Position = UDim2.new(0.03, 0, 0.05, 0)
+videoFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+videoFrame.Video = videoList[1].id
+videoFrame.Parent = mainFrame
+
+-- ========== ปุ่มเลือกคลิป (แถวเล็กๆ ใต้จอ) ==========
+local clipBar = Instance.new("ScrollingFrame")
+clipBar.Name = "ClipBar"
+clipBar.Size = UDim2.new(0.94, 0, 0, 30)
+clipBar.Position = UDim2.new(0.03, 0, 0.65, 0)
+clipBar.BackgroundTransparency = 1
+clipBar.ScrollBarThickness = 4
+clipBar.CanvasSize = UDim2.new(0, #videoList * 75, 0, 0)
+clipBar.BorderSizePixel = 0
+clipBar.Parent = mainFrame
+
+local function selectClip(index)
+	currentIndex = index
+	videoFrame.Video = videoList[index].id
+	videoFrame:Play()
+	isPlaying = true
+	playBtn.Text = "⏸"
+	-- รีเซ็ตสีปุ่ม
+	for _, child in ipairs(clipBar:GetChildren()) do
+		if child:IsA("TextButton") then
+			child.BackgroundColor3 = Color3.fromRGB(30, 30, 50)
+		end
+	end
+	local btn = clipBar:FindFirstChild("ClipBtn"..index)
+	if btn then btn.BackgroundColor3 = Color3.fromRGB(80, 60, 140) end
+end
+
+for i, data in ipairs(videoList) do
+	local btn = Instance.new("TextButton")
+	btn.Name = "ClipBtn"..i
+	btn.Size = UDim2.new(0, 65, 0, 26)
+	btn.Position = UDim2.new(0, (i-1)*72, 0, 0)
+	btn.Text = data.name
+	btn.BackgroundColor3 = (i==1) and Color3.fromRGB(80, 60, 140) or Color3.fromRGB(30, 30, 50)
+	btn.TextColor3 = Color3.fromRGB(220, 220, 255)
+	btn.TextSize = 12
+	btn.Font = Enum.Font.Gotham
+	btn.BorderSizePixel = 0
+	btn.Parent = clipBar
+	btn.MouseButton1Click:Connect(function()
+		selectClip(i)
+	end)
+end
+
+-- ========== ปุ่มควบคุม (Play/Stop) ==========
+local controlFrame = Instance.new("Frame")
+controlFrame.Size = UDim2.new(0.94, 0, 0, 35)
+controlFrame.Position = UDim2.new(0.03, 0, 0.78, 0)
+controlFrame.BackgroundTransparency = 1
+controlFrame.Parent = mainFrame
+
+local playBtn = Instance.new("TextButton")
+playBtn.Name = "PlayBtn"
+playBtn.Size = UDim2.new(0, 60, 0, 30)
+playBtn.Position = UDim2.new(0, 0, 0, 0)
+playBtn.Text = "▶️"
+playBtn.BackgroundColor3 = Color3.fromRGB(30, 80, 30)
+playBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+playBtn.TextSize = 20
+playBtn.Font = Enum.Font.GothamBold
+playBtn.BorderSizePixel = 0
+playBtn.Parent = controlFrame
+
+local stopBtn = Instance.new("TextButton")
+stopBtn.Name = "StopBtn"
+stopBtn.Size = UDim2.new(0, 50, 0, 30)
+stopBtn.Position = UDim2.new(0, 70, 0, 0)
+stopBtn.Text = "⏹"
+stopBtn.BackgroundColor3 = Color3.fromRGB(80, 30, 30)
+stopBtn.TextColor3 = Color3.fromRGB(255, 200, 200)
+stopBtn.TextSize = 20
+stopBtn.Font = Enum.Font.Gotham
+stopBtn.BorderSizePixel = 0
+stopBtn.Parent = controlFrame
+
+-- ชื่อคลิปปัจจุบัน (เล็ก ๆ ไว้ข้างๆ)
+local nowLbl = Instance.new("TextLabel")
+nowLbl.Size = UDim2.new(0.5, 0, 0, 30)
+nowLbl.Position = UDim2.new(0.45, 0, 0, 0)
+nowLbl.BackgroundTransparency = 1
+nowLbl.Text = videoList[1].name
+nowLbl.TextColor3 = Color3.fromRGB(180, 200, 255)
+nowLbl.TextSize = 14
+nowLbl.Font = Enum.Font.Gotham
+nowLbl.TextXAlignment = Enum.TextXAlignment.Left
+nowLbl.Parent = controlFrame
+
+playBtn.MouseButton1Click:Connect(function()
+	if isPlaying then
+		videoFrame:Pause()
+		isPlaying = false
+		playBtn.Text = "▶️"
+		playBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 30)
+	else
+		videoFrame:Play()
+		isPlaying = true
+		playBtn.Text = "⏸"
+		playBtn.BackgroundColor3 = Color3.fromRGB(30, 80, 30)
+	end
+end)
+
+stopBtn.MouseButton1Click:Connect(function()
+	videoFrame:Stop()
+	isPlaying = false
+	playBtn.Text = "▶️"
+	playBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 30)
+end)
+
+-- ========== ฟังก์ชันย่อเป็นแท่งเล็ก (เหมาะมือถือมาก) ==========
+local function toggleMinimize()
+	isMinimized = not isMinimized
+	if isMinimized then
+		mainFrame.Size = UDim2.new(0, 60, 0, 180)
+		mainFrame.Position = UDim2.new(0.88, 0, 0.75, 0)
+		videoFrame.Visible = false
+		clipBar.Visible = false
+		controlFrame.Visible = false
+		miniBtn.Text = "⏩"
+		miniBtn.Size = UDim2.new(1, 0, 0, 30)
+		miniBtn.Position = UDim2.new(0, 0, 0.05, 0)
+		mainFrame.BackgroundColor3 = Color3.fromRGB(40, 20, 60)
+	else
+		mainFrame.Size = UDim2.new(0, 350, 0, 270)
+		mainFrame.Position = UDim2.new(0.5, -175, 0.5, -135)
+		videoFrame.Visible = true
+		clipBar.Visible = true
+		controlFrame.Visible = true
+		miniBtn.Text = "⏪"
+		miniBtn.Size = UDim2.new(0, 40, 0, 30)
+		miniBtn.Position = UDim2.new(0.85, 0, 0.02, 0)
+		mainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 20)
+	end
+end
+
+miniBtn.MouseButton1Click:Connect(toggleMinimize)
+
+-- ========== โหลดคลิปแรกอัตโนมัติ ==========
+task.wait(0.5)
+videoFrame:Play()
+isPlaying = true
+playBtn.Text = "⏸"
+
+-- ========== กด ESC ซ่อนได้ (มือถือกดปุ่มย้อนกลับหรือแตะ 3 นิ้วก็ได้) ==========
+userInput.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+	if input.KeyCode == Enum.KeyCode.Escape then
+		screenGui.Enabled = not screenGui.Enabled
+	end
+end)
+
+print("✅ UI คลิปจิ๋วสำหรับมือถือพร้อมใช้งาน (แยกเด็ดขาด)")
+-- ข้อดี: ขนาดพอดีนิ้ว, เลือกคลิปง่าย, ย่อเป็นแท่งเล็กไม่กินพื้นที่, รองรับทัช, VideoFrame เล่นจริง
+-- ลิขสิทธิ์ Saikuto 😈 อย่ามาว่ามึงขอแบบมือถือไง
