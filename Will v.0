@@ -1,0 +1,528 @@
+-- [[ WINDOWS 11 SINGLE UI - ULTRA SMOOTH & FULLY CLICKABLE ]] --
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local CoreGui = game:GetService("CoreGui")
+local StarterGui = game:GetService("StarterGui")
+local SoundService = game:GetService("SoundService")
+local TweenService = game:GetService("TweenService")
+
+local localPlayer = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+
+-- Sound FX
+local buttonSound = Instance.new("Sound")
+buttonSound.SoundId = "rbxassetid://138656991212198"
+buttonSound.Volume = 0.7
+buttonSound.Parent = SoundService
+
+local function playBtnSound()
+    pcall(function() buttonSound:Play() end)
+end
+
+-- State Variables
+local espEnabled = true
+local camLockEnabled = true
+local autoShootEnabled = true 
+local aiPredictEnabled = true 
+local speedEnabled = true
+local antiNearEnabled = true 
+local bubbleEnabled = true
+
+local customWalkSpeed = 35 
+local pushDistance = 30 
+local smoothness = 0.12 
+local predictedVelocity = Vector3.new(0, 0, 0)
+local lastTargetPos = nil
+local lastShootTime = 0
+
+pcall(function()
+    StarterGui:SetCore("SendNotification", {
+        Title = "Windows 11 Single UI",
+        Text = "Loaded successfully & Fully Clickable!",
+        Duration = 3
+    })
+end)
+
+----------------------------------------------------
+-- 1. CLEAN SINGLE GUI (No Overlapping)
+----------------------------------------------------
+local targetParent = localPlayer:WaitForChild("PlayerGui")
+pcall(function() targetParent = CoreGui end)
+
+-- Clear old UIs
+if targetParent:FindFirstChild("Win11_Single_UI") then targetParent.Win11_Single_UI:Destroy() end
+if targetParent:FindFirstChild("Win11_Main_UI") then targetParent.Win11_Main_UI:Destroy() end
+if targetParent:FindFirstChild("Win11_Troll_UI") then targetParent.Win11_Troll_UI:Destroy() end
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "Win11_Single_UI"
+screenGui.ResetOnSpawn = false
+screenGui.IgnoreGuiInset = true
+screenGui.Parent = targetParent
+
+-- Main Single Frame
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 260, 0, 440)
+mainFrame.Position = UDim2.new(0.05, 0, 0.1, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(32, 32, 32)
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = false -- ใช้ Custom Drag เพื่อความลื่นไหล
+mainFrame.Parent = screenGui
+
+local mainCorner = Instance.new("UICorner")
+mainCorner.CornerRadius = UDim.new(0, 10)
+mainCorner.Parent = mainFrame
+
+local mainStroke = Instance.new("UIStroke")
+mainStroke.Color = Color3.fromRGB(60, 60, 65)
+mainStroke.Thickness = 1
+mainStroke.Parent = mainFrame
+
+-- TitleBar
+local titleBar = Instance.new("Frame")
+titleBar.Name = "TitleBar"
+titleBar.Size = UDim2.new(1, 0, 0, 38)
+titleBar.BackgroundColor3 = Color3.fromRGB(26, 26, 26)
+titleBar.BorderSizePixel = 0
+titleBar.Active = true
+titleBar.Parent = mainFrame
+
+local titleCorner = Instance.new("UICorner")
+titleCorner.CornerRadius = UDim.new(0, 10)
+titleCorner.Parent = titleBar
+
+local titleText = Instance.new("TextLabel")
+titleText.Size = UDim2.new(1, -40, 1, 0)
+titleText.Position = UDim2.new(0, 12, 0, 0)
+titleText.BackgroundTransparency = 1
+titleText.Text = "Win11 Control Panel"
+titleText.TextColor3 = Color3.fromRGB(245, 245, 245)
+titleText.TextXAlignment = Enum.TextXAlignment.Left
+titleText.Font = Enum.Font.GothamBold
+titleText.TextSize = 12
+titleText.Parent = titleBar
+
+-- Scrolling Container for Everything (Prevent Overflow)
+local scrollContainer = Instance.new("ScrollingFrame")
+scrollContainer.Size = UDim2.new(1, -12, 1, -48)
+scrollContainer.Position = UDim2.new(0, 6, 0, 42)
+scrollContainer.BackgroundTransparency = 1
+scrollContainer.BorderSizePixel = 0
+scrollContainer.ScrollBarThickness = 4
+scrollContainer.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 100)
+scrollContainer.CanvasSize = UDim2.new(0, 0, 0, 520)
+scrollContainer.Parent = mainFrame
+
+local listLayout = Instance.new("UIListLayout")
+listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+listLayout.Padding = UDim.new(0, 6)
+listLayout.Parent = scrollContainer
+
+-- Win11 Smooth Switch Generator
+local function createWin11Toggle(title, defaultState, callback)
+    local state = defaultState
+
+    local row = Instance.new("Frame")
+    row.Size = UDim2.new(1, -8, 0, 40)
+    row.BackgroundColor3 = Color3.fromRGB(43, 43, 43)
+    row.BorderSizePixel = 0
+    row.Parent = scrollContainer
+
+    local rowCorner = Instance.new("UICorner")
+    rowCorner.CornerRadius = UDim.new(0, 7)
+    rowCorner.Parent = row
+
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, -55, 1, 0)
+    label.Position = UDim2.new(0, 10, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = title
+    label.TextColor3 = Color3.fromRGB(230, 230, 230)
+    label.Font = Enum.Font.Gotham
+    label.TextSize = 12
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = row
+
+    local switchBase = Instance.new("TextButton")
+    switchBase.Size = UDim2.new(0, 40, 0, 20)
+    switchBase.Position = UDim2.new(1, -48, 0.5, -10)
+    switchBase.BackgroundColor3 = state and Color3.fromRGB(0, 120, 212) or Color3.fromRGB(75, 75, 75)
+    switchBase.Text = ""
+    switchBase.AutoButtonColor = false
+    switchBase.Parent = row
+
+    local switchCorner = Instance.new("UICorner")
+    switchCorner.CornerRadius = UDim.new(1, 0)
+    switchCorner.Parent = switchBase
+
+    local dot = Instance.new("Frame")
+    dot.Size = UDim2.new(0, 14, 0, 14)
+    dot.Position = state and UDim2.new(1, -17, 0.5, -7) or UDim2.new(0, 3, 0.5, -7)
+    dot.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    dot.BorderSizePixel = 0
+    dot.Parent = switchBase
+
+    local dotCorner = Instance.new("UICorner")
+    dotCorner.CornerRadius = UDim.new(1, 0)
+    dotCorner.Parent = dot
+
+    switchBase.MouseButton1Click:Connect(function()
+        playBtnSound()
+        state = not state
+        
+        TweenService:Create(switchBase, TweenInfo.new(0.2), {
+            BackgroundColor3 = state and Color3.fromRGB(0, 120, 212) or Color3.fromRGB(75, 75, 75)
+        }):Play()
+        
+        dot:TweenPosition(
+            state and UDim2.new(1, -17, 0.5, -7) or UDim2.new(0, 3, 0.5, -7),
+            Enum.EasingDirection.Out, Enum.EasingStyle.Quart, 0.2, true
+        )
+        if callback then callback(state) end
+    end)
+
+    return row
+end
+
+-- Register Toggles
+createWin11Toggle("ESP Green Glow", espEnabled, function(s) espEnabled = s end)
+createWin11Toggle("CamLock (Ultra Smooth)", camLockEnabled, function(s) camLockEnabled = s end)
+createWin11Toggle("Auto Shoot Target", autoShootEnabled, function(s) autoShootEnabled = s end)
+createWin11Toggle("AI Predictor Filter", aiPredictEnabled, function(s) aiPredictEnabled = s end)
+createWin11Toggle("Custom Speed (35)", speedEnabled, function(s) 
+    speedEnabled = s 
+    if not s and localPlayer.Character then
+        local hum = localPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if hum then hum.WalkSpeed = 16 end
+    end
+end)
+createWin11Toggle("Anti-Proximity (30m)", antiNearEnabled, function(s) antiNearEnabled = s end)
+createWin11Toggle("Immortal Shield", bubbleEnabled, function(s) 
+    bubbleEnabled = s 
+    if localPlayer.Character then
+        local bubble = localPlayer.Character:FindFirstChild("ImmortalBubbleShield")
+        if bubble then bubble.Transparency = s and 0.3 or 1 end
+    end
+end)
+
+-- Section Header for Players
+local sectionHeader = Instance.new("TextLabel")
+sectionHeader.Size = UDim2.new(1, -8, 0, 30)
+sectionHeader.BackgroundColor3 = Color3.fromRGB(26, 26, 26)
+sectionHeader.Text = "  Player Quick Actions"
+sectionHeader.TextColor3 = Color3.fromRGB(150, 150, 150)
+sectionHeader.Font = Enum.Font.GothamBold
+sectionHeader.TextSize = 11
+sectionHeader.TextXAlignment = Enum.TextXAlignment.Left
+sectionHeader.Parent = scrollContainer
+
+local secCorner = Instance.new("UICorner") secCorner.CornerRadius = UDim.new(0, 6) secCorner.Parent = sectionHeader
+
+-- Player List Dynamic Container
+local playerListContainer = Instance.new("Frame")
+playerListContainer.Size = UDim2.new(1, -8, 0, 150)
+playerListContainer.BackgroundTransparency = 1
+playerListContainer.Parent = scrollContainer
+
+local pListLayout = Instance.new("UIListLayout")
+pListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+pListLayout.Padding = UDim.new(0, 4)
+pListLayout.Parent = playerListContainer
+
+----------------------------------------------------
+-- 2. DRAGGING ENGINE (Smooth & Fixed)
+----------------------------------------------------
+local dragging, dragStart, startPos
+titleBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = mainFrame.Position
+    end
+end)
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+    end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+
+----------------------------------------------------
+-- 3. BUBBLE SHIELD & ESP
+----------------------------------------------------
+local function createBubble(character)
+    if not character then return end
+    local hrp = character:WaitForChild("HumanoidRootPart", 5)
+    if not hrp then return end
+
+    if character:FindFirstChild("ImmortalBubbleShield") then
+        character.ImmortalBubbleShield:Destroy()
+    end
+
+    local bubble = Instance.new("Part")
+    bubble.Name = "ImmortalBubbleShield"
+    bubble.Shape = Enum.PartType.Ball
+    bubble.Size = Vector3.new(10, 10, 10)
+    bubble.Material = Enum.Material.Forcefield
+    bubble.Color = Color3.fromRGB(0, 120, 212)
+    bubble.Transparency = bubbleEnabled and 0.3 or 1
+    bubble.CanCollide = false
+    bubble.Massless = true
+    bubble.Parent = character
+
+    local weld = Instance.new("Weld")
+    weld.Part0 = hrp
+    weld.Part1 = bubble
+    weld.C0 = CFrame.new(0, 0, 0)
+    weld.Parent = bubble
+
+    task.spawn(function()
+        local rot = 0
+        while bubble and bubble.Parent do
+            rot = rot + 1.2
+            weld.C0 = CFrame.new(0, 0, 0) * CFrame.Angles(0, math.rad(rot), math.rad(rot / 2))
+            task.wait(0.02)
+        end
+    end)
+end
+
+local function initShield(char)
+    task.wait(0.2)
+    createBubble(char)
+end
+
+if localPlayer.Character then initShield(localPlayer.Character) end
+localPlayer.CharacterAdded:Connect(initShield)
+
+local function isVisible(targetPart)
+    local character = localPlayer.Character
+    if not character then return false end
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+    raycastParams.FilterDescendantsInstances = {character, camera}
+    raycastParams.IgnoreWater = true
+    local origin = camera.CFrame.Position
+    local direction = targetPart.Position - origin
+    local raycastResult = workspace:Raycast(origin, direction, raycastParams)
+    return (not raycastResult or raycastResult.Instance:IsDescendantOf(targetPart.Parent))
+end
+
+local function applyESP(plr)
+    if plr == localPlayer then return end
+    local function update()
+        if not plr.Character then return end
+        local hl = plr.Character:FindFirstChild("GreenGlow_Highlight")
+        if not hl then
+            hl = Instance.new("Highlight")
+            hl.Name = "GreenGlow_Highlight"
+            hl.FillColor = Color3.fromRGB(0, 255, 120)
+            hl.FillTransparency = 0.4
+            hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+            hl.Parent = plr.Character
+        end
+        hl.Enabled = espEnabled
+
+        local head = plr.Character:FindFirstChild("Head")
+        if head then
+            local bg = head:FindFirstChild("DistanceTag")
+            if not bg then
+                bg = Instance.new("BillboardGui")
+                bg.Name = "DistanceTag"
+                bg.Size = UDim2.new(0, 100, 0, 40)
+                bg.StudsOffset = Vector3.new(0, 2, 0)
+                bg.AlwaysOnTop = true
+                bg.Parent = head
+                local txt = Instance.new("TextLabel")
+                txt.Name = "DistText"
+                txt.Size = UDim2.new(1, 0, 1, 0)
+                txt.BackgroundTransparency = 1
+                txt.TextColor3 = Color3.fromRGB(0, 255, 120)
+                txt.Font = Enum.Font.GothamBold
+                txt.TextSize = 12
+                txt.Parent = bg
+            end
+            bg.Enabled = espEnabled
+        end
+    end
+    plr.CharacterAdded:Connect(function() task.wait(0.5) update() end)
+    if plr.Character then update() end
+end
+
+for _, p in ipairs(Players:GetPlayers()) do applyESP(p) end
+Players.PlayerAdded:Connect(applyESP)
+
+----------------------------------------------------
+-- 4. PLAYER LIST RENDERER
+----------------------------------------------------
+local function updatePlayerList()
+    for _, child in ipairs(playerListContainer:GetChildren()) do
+        if child:IsA("Frame") then child:Destroy() end
+    end
+    local count = 0
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= localPlayer then
+            count = count + 1
+            local itemFrame = Instance.new("Frame")
+            itemFrame.Size = UDim2.new(1, 0, 0, 36)
+            itemFrame.BackgroundColor3 = Color3.fromRGB(43, 43, 43)
+            itemFrame.Parent = playerListContainer
+
+            local ic = Instance.new("UICorner") ic.CornerRadius = UDim.new(0, 6) ic.Parent = itemFrame
+
+            local nameTag = Instance.new("TextLabel")
+            nameTag.Size = UDim2.new(1, -70, 1, 0)
+            nameTag.Position = UDim2.new(0, 8, 0, 0)
+            nameTag.BackgroundTransparency = 1
+            nameTag.Text = p.DisplayName
+            nameTag.TextColor3 = Color3.fromRGB(230, 230, 230)
+            nameTag.Font = Enum.Font.Gotham
+            nameTag.TextSize = 11
+            nameTag.TextXAlignment = Enum.TextXAlignment.Left
+            nameTag.Parent = itemFrame
+
+            local yeetBtn = Instance.new("TextButton")
+            yeetBtn.Size = UDim2.new(0, 56, 0, 24)
+            yeetBtn.Position = UDim2.new(1, -60, 0.5, -12)
+            yeetBtn.BackgroundColor3 = Color3.fromRGB(196, 43, 28)
+            yeetBtn.Text = "ดีดไกล"
+            yeetBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            yeetBtn.Font = Enum.Font.GothamBold
+            yeetBtn.TextSize = 10
+            yeetBtn.Parent = itemFrame
+
+            local yc = Instance.new("UICorner") yc.CornerRadius = UDim.new(0, 4) yc.Parent = yeetBtn
+
+            yeetBtn.MouseButton1Click:Connect(function()
+                playBtnSound()
+                pcall(function()
+                    local myHrp = localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart")
+                    local targetHrp = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
+                    if myHrp and targetHrp then
+                        local pushDir = (targetHrp.Position - myHrp.Position).Unit
+                        targetHrp.AssemblyLinearVelocity = (pushDir * 400) + Vector3.new(0, 300, 0)
+                    end
+                end)
+            end)
+        end
+    end
+    playerListContainer.Size = UDim2.new(1, -8, 0, count * 40)
+    scrollContainer.CanvasSize = UDim2.new(0, 0, 0, 360 + (count * 40))
+end
+
+Players.PlayerAdded:Connect(updatePlayerList)
+Players.PlayerRemoving:Connect(updatePlayerList)
+updatePlayerList()
+
+----------------------------------------------------
+-- 5. MAIN RENDER LOOP (SMOOTH CAMLOCK)
+----------------------------------------------------
+if _G.ESP_Loop then _G.ESP_Loop:Disconnect() end
+
+_G.ESP_Loop = RunService.RenderStepped:Connect(function(dt)
+    local myChar = localPlayer.Character
+    local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    local myHum = myChar and myChar:FindFirstChildOfClass("Humanoid")
+
+    if bubbleEnabled and myHum and myHum.Health < myHum.MaxHealth then
+        myHum.Health = myHum.MaxHealth
+    end
+
+    if myHRP then
+        if antiNearEnabled then
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p ~= localPlayer and p.Character then
+                    local targetHrp = p.Character:FindFirstChild("HumanoidRootPart")
+                    if targetHrp then
+                        local dist = (targetHrp.Position - myHRP.Position).Magnitude
+                        if dist <= pushDistance then
+                            pcall(function()
+                                local pushDir = (targetHrp.Position - myHRP.Position).Unit
+                                targetHrp.AssemblyLinearVelocity = (pushDir * 450) + Vector3.new(0, 350, 0)
+                            end)
+                        end
+                    end
+                end
+            end
+        end
+
+        if espEnabled then
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p ~= localPlayer and p.Character then
+                    local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+                    local head = p.Character:FindFirstChild("Head")
+                    if hrp and head then
+                        local bg = head:FindFirstChild("DistanceTag")
+                        if bg and bg.Enabled then
+                            local dist = math.floor((hrp.Position - myHRP.Position).Magnitude)
+                            local txt = bg:FindFirstChild("DistText")
+                            if txt then txt.Text = "[" .. dist .. "m]" end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    if speedEnabled and myHum then
+        pcall(function() myHum.WalkSpeed = customWalkSpeed end)
+    end
+
+    if camLockEnabled and myHRP then
+        pcall(function()
+            local closestTargetPart = nil
+            local minDistance = math.huge
+
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p ~= localPlayer and p.Character then
+                    local hum = p.Character:FindFirstChildOfClass("Humanoid")
+                    local head = p.Character:FindFirstChild("Head")
+                    local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+
+                    if hum and hum.Health > 0 and head and hrp then
+                        local dist = (hrp.Position - myHRP.Position).Magnitude
+                        if dist < minDistance and isVisible(head) then
+                            minDistance = dist
+                            closestTargetPart = head
+                        end
+                    end
+                end
+            end
+
+            if closestTargetPart then
+                local currentPos = closestTargetPart.Position
+                
+                if aiPredictEnabled then
+                    if lastTargetPos then
+                        local rawVelocity = (currentPos - lastTargetPos) / math.max(dt, 0.001)
+                        predictedVelocity = predictedVelocity:Lerp(rawVelocity, math.clamp(dt * 10, 0, 1))
+                    end
+                    currentPos = currentPos + (predictedVelocity * 0.08)
+                end
+                lastTargetPos = closestTargetPart.Position
+
+                local targetCFrame = CFrame.lookAt(camera.CFrame.Position, currentPos)
+                local lerpFactor = 1 - math.exp(-smoothness * dt * 60)
+                camera.CFrame = camera.CFrame:Lerp(targetCFrame, lerpFactor)
+
+                if autoShootEnabled and isVisible(closestTargetPart) then
+                    local tool = myChar:FindFirstChildOfClass("Tool")
+                    if tool and (tick() - lastShootTime > 0.05) then
+                        lastShootTime = tick()
+                        tool:Activate()
+                    end
+                end
+            else
+                lastTargetPos = nil
+                predictedVelocity = Vector3.new(0, 0, 0)
+            end
+        end)
+    end
+end)
