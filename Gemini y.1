@@ -1,0 +1,374 @@
+-- ลบการทำงานเก่าออกก่อนเพื่อป้องกันสคริปต์ค้าง
+if _G.ESP_Loop then
+    _G.ESP_Loop:Disconnect()
+    _G.ESP_Loop = nil
+end
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local CoreGui = game:GetService("CoreGui")
+local StarterGui = game:GetService("StarterGui")
+
+local localPlayer = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+
+-- สถานะระบบ
+local espEnabled = true
+local camLockEnabled = true
+local speedEnabled = true
+local antiKickEnabled = true
+local aiPredictEnabled = true 
+local isMinimized = false
+
+local customWalkSpeed = 35 
+local smoothSpeed = 6 
+
+----------------------------------------------------
+-- 0. ระบบป้องกันเบื้องต้น (Anti-Kick)
+----------------------------------------------------
+pcall(function()
+    StarterGui:SetCore("SendNotification", {
+        Title = "System Status",
+        Text = "ESP + AI Predict + Distance Loaded!",
+        Duration = 3
+    })
+end)
+
+local oldNameCall
+oldNameCall = hookmetamethod(game, "__namecall", function(self, ...)
+    local method = getnamecallmethod()
+    if antiKickEnabled and method == "Kick" and self == localPlayer then
+        return nil
+    end
+    return oldNameCall(self, ...)
+end)
+
+----------------------------------------------------
+-- 1. สร้างหน้าจอ UI
+----------------------------------------------------
+local targetParent = localPlayer:WaitForChild("PlayerGui")
+pcall(function()
+    targetParent = CoreGui
+end)
+
+if targetParent:FindFirstChild("Roblox_ESP_UI") then
+    targetParent.Roblox_ESP_UI:Destroy()
+end
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "Roblox_ESP_UI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = targetParent
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 200, 0, 270)
+mainFrame.Position = UDim2.new(0.05, 0, 0.2, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Parent = screenGui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 8)
+corner.Parent = mainFrame
+
+local titleBar = Instance.new("Frame")
+titleBar.Name = "TitleBar"
+titleBar.Size = UDim2.new(1, 0, 0, 30)
+titleBar.BackgroundColor3 = Color3.fromRGB(40, 40, 48)
+titleBar.BorderSizePixel = 0
+titleBar.Active = true
+titleBar.Parent = mainFrame
+
+local titleCorner = Instance.new("UICorner")
+titleCorner.CornerRadius = UDim.new(0, 8)
+titleCorner.Parent = titleBar
+
+local titleText = Instance.new("TextLabel")
+titleText.Size = UDim2.new(1, -40, 1, 0)
+titleText.Position = UDim2.new(0, 10, 0, 0)
+titleText.BackgroundTransparency = 1
+titleText.Text = "ESP + Distance + AI"
+titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleText.TextXAlignment = Enum.TextXAlignment.Left
+titleText.Font = Enum.Font.SourceSansBold
+titleText.TextSize = 14
+titleText.Parent = titleBar
+
+local minBtn = Instance.new("TextButton")
+minBtn.Size = UDim2.new(0, 25, 0, 25)
+minBtn.Position = UDim2.new(1, -28, 0, 2.5)
+minBtn.BackgroundColor3 = Color3.fromRGB(55, 55, 60)
+minBtn.Text = "-"
+minBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+minBtn.Font = Enum.Font.SourceSansBold
+minBtn.TextSize = 18
+minBtn.Parent = titleBar
+
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Size = UDim2.new(1, -20, 0, 35)
+toggleBtn.Position = UDim2.new(0, 10, 0, 40)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(46, 125, 50)
+toggleBtn.Text = "ESP Green Glow: ON"
+toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleBtn.Font = Enum.Font.SourceSansBold
+toggleBtn.TextSize = 14
+toggleBtn.Parent = mainFrame
+
+local lockBtn = Instance.new("TextButton")
+lockBtn.Size = UDim2.new(1, -20, 0, 35)
+lockBtn.Position = UDim2.new(0, 10, 0, 85)
+lockBtn.BackgroundColor3 = Color3.fromRGB(46, 125, 50)
+lockBtn.Text = "CamLock (Smooth): ON"
+lockBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+lockBtn.Font = Enum.Font.SourceSansBold
+lockBtn.TextSize = 14
+lockBtn.Parent = mainFrame
+
+local aiBtn = Instance.new("TextButton")
+aiBtn.Size = UDim2.new(1, -20, 0, 35)
+aiBtn.Position = UDim2.new(0, 10, 0, 130)
+aiBtn.BackgroundColor3 = Color3.fromRGB(46, 125, 50)
+aiBtn.Text = "AI Predictor: ON"
+aiBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+aiBtn.Font = Enum.Font.SourceSansBold
+aiBtn.TextSize = 14
+aiBtn.Parent = mainFrame
+
+local speedBtn = Instance.new("TextButton")
+speedBtn.Size = UDim2.new(1, -20, 0, 35)
+speedBtn.Position = UDim2.new(0, 10, 0, 175)
+speedBtn.BackgroundColor3 = Color3.fromRGB(46, 125, 50)
+speedBtn.Text = "Custom Speed: ON"
+speedBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+speedBtn.Font = Enum.Font.SourceSansBold
+speedBtn.TextSize = 14
+speedBtn.Parent = mainFrame
+
+local antiBanBtn = Instance.new("TextButton")
+antiBanBtn.Size = UDim2.new(1, -20, 0, 35)
+antiBanBtn.Position = UDim2.new(0, 10, 0, 220)
+antiBanBtn.BackgroundColor3 = Color3.fromRGB(46, 125, 50)
+antiBanBtn.Text = "Anti-Kick/Ban: ON"
+antiBanBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+antiBanBtn.Font = Enum.Font.SourceSansBold
+antiBanBtn.TextSize = 14
+antiBanBtn.Parent = mainFrame
+
+for _, b in ipairs({minBtn, toggleBtn, lockBtn, aiBtn, speedBtn, antiBanBtn}) do
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, 6)
+    c.Parent = b
+end
+
+----------------------------------------------------
+-- 2. ระบบ Drag
+----------------------------------------------------
+local dragging, dragStart, startPos
+
+titleBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = mainFrame.Position
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+
+----------------------------------------------------
+-- 3. ปุ่มกดเปิด/ปิด
+----------------------------------------------------
+minBtn.MouseButton1Click:Connect(function()
+    isMinimized = not isMinimized
+    mainFrame.Size = isMinimized and UDim2.new(0, 200, 0, 30) or UDim2.new(0, 200, 0, 270)
+    toggleBtn.Visible = not isMinimized
+    lockBtn.Visible = not isMinimized
+    aiBtn.Visible = not isMinimized
+    speedBtn.Visible = not isMinimized
+    antiBanBtn.Visible = not isMinimized
+    minBtn.Text = isMinimized and "+" or "-"
+end)
+
+toggleBtn.MouseButton1Click:Connect(function()
+    espEnabled = not espEnabled
+    toggleBtn.Text = espEnabled and "ESP Green Glow: ON" | "ESP Green Glow: OFF" or (espEnabled and "ESP Green Glow: ON" or "ESP Green Glow: OFF")
+    toggleBtn.BackgroundColor3 = espEnabled and Color3.fromRGB(46, 125, 50) or Color3.fromRGB(198, 40, 40)
+end)
+
+lockBtn.MouseButton1Click:Connect(function()
+    camLockEnabled = not camLockEnabled
+    lockBtn.Text = camLockEnabled and "CamLock (Smooth): ON" or "CamLock: OFF"
+    lockBtn.BackgroundColor3 = camLockEnabled and Color3.fromRGB(46, 125, 50) or Color3.fromRGB(198, 40, 40)
+end)
+
+aiBtn.MouseButton1Click:Connect(function()
+    aiPredictEnabled = not aiPredictEnabled
+    aiBtn.Text = aiPredictEnabled and "AI Predictor: ON" or "AI Predictor: OFF"
+    aiBtn.BackgroundColor3 = aiPredictEnabled and Color3.fromRGB(46, 125, 50) or Color3.fromRGB(198, 40, 40)
+end)
+
+speedBtn.MouseButton1Click:Connect(function()
+    speedEnabled = not speedEnabled
+    speedBtn.Text = speedEnabled and "Custom Speed: ON" or "Custom Speed: OFF"
+    speedBtn.BackgroundColor3 = speedEnabled and Color3.fromRGB(46, 125, 50) or Color3.fromRGB(198, 40, 40)
+    
+    if not speedEnabled then
+        pcall(function()
+            local hum = localPlayer.Character and localPlayer.Character:FindFirstChildOfClass("Humanoid")
+            if hum then hum.WalkSpeed = 16 end
+        end)
+    end
+end)
+
+antiBanBtn.MouseButton1Click:Connect(function()
+    antiKickEnabled = not antiKickEnabled
+    antiBanBtn.Text = antiKickEnabled and "Anti-Kick/Ban: ON" or "Anti-Kick/Ban: OFF"
+    antiBanBtn.BackgroundColor3 = antiKickEnabled and Color3.fromRGB(46, 125, 50) or Color3.fromRGB(198, 40, 40)
+end)
+
+----------------------------------------------------
+-- 4. ESP Highlight & Distance Text (BillboardGui)
+----------------------------------------------------
+local function applyESP(plr)
+    if plr == localPlayer then return end
+    
+    local function update()
+        if not plr.Character then return end
+        
+        -- Highlight
+        local hl = plr.Character:FindFirstChild("GreenGlow_Highlight")
+        if not hl then
+            hl = Instance.new("Highlight")
+            hl.Name = "GreenGlow_Highlight"
+            hl.FillColor = Color3.fromRGB(0, 255, 0)
+            hl.FillTransparency = 0.4
+            hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+            hl.OutlineTransparency = 0
+            hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            hl.Parent = plr.Character
+        end
+        hl.Enabled = espEnabled
+
+        -- BillboardGui สำหรับแสดงระยะทาง (Distance)
+        local head = plr.Character:FindFirstChild("Head")
+        if head then
+            local bg = head:FindFirstChild("DistanceTag")
+            if not bg then
+                bg = Instance.new("BillboardGui")
+                bg.Name = "DistanceTag"
+                bg.Size = UDim2.new(0, 100, 0, 40)
+                bg.StudsOffset = Vector3.new(0, 2, 0)
+                bg.AlwaysOnTop = true
+                bg.Parent = head
+
+                local txt = Instance.new("TextLabel")
+                txt.Name = "DistText"
+                txt.Size = UDim2.new(1, 0, 1, 0)
+                txt.BackgroundTransparency = 1
+                txt.TextColor3 = Color3.fromRGB(0, 255, 0)
+                txt.TextStrokeTransparency = 0
+                txt.Font = Enum.Font.SourceSansBold
+                txt.TextSize = 14
+                txt.Parent = bg
+            end
+            bg.Enabled = espEnabled
+        end
+    end
+    
+    plr.CharacterAdded:Connect(function()
+        task.wait(0.5)
+        update()
+    end)
+    if plr.Character then update() end
+end
+
+for _, p in ipairs(Players:GetPlayers()) do applyESP(p) end
+Players.PlayerAdded:Connect(applyESP)
+
+----------------------------------------------------
+-- 5. Main Loop (AI Predict + Distance Update)
+----------------------------------------------------
+local lastTargetPosition = Vector3.new(0, 0, 0)
+
+_G.ESP_Loop = RunService.RenderStepped:Connect(function(dt)
+    local myChar = localPlayer.Character
+    local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
+
+    -- อัปเดตระยะทางของ ESP แต่ละคน
+    if espEnabled and myHRP then
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= localPlayer and p.Character then
+                local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+                local head = p.Character:FindFirstChild("Head")
+                if hrp and head then
+                    local bg = head:FindFirstChild("DistanceTag")
+                    if bg and bg.Enabled then
+                        local dist = math.floor((hrp.Position - myHRP.Position).Magnitude)
+                        local txt = bg:FindFirstChild("DistText")
+                        if txt then
+                            txt.Text = "[" .. dist .. "m]"
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    if speedEnabled then
+        pcall(function()
+            local hum = myChar and myChar:FindFirstChildOfClass("Humanoid")
+            if hum then hum.WalkSpeed = customWalkSpeed end
+        end)
+    end
+
+    if camLockEnabled and myHRP then
+        pcall(function()
+            local closestTargetPart = nil
+            local minDistance = math.huge
+
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p ~= localPlayer and p.Character then
+                    local hum = p.Character:FindFirstChildOfClass("Humanoid")
+                    local head = p.Character:FindFirstChild("Head")
+                    local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+
+                    if hum and hum.Health > 0 and head and hrp then
+                        local dist = (hrp.Position - myHRP.Position).Magnitude
+                        if dist < minDistance then
+                            minDistance = dist
+                            closestTargetPart = head
+                        end
+                    end
+                end
+            end
+
+            if closestTargetPart then
+                local targetPos = closestTargetPart.Position
+                
+                -- ระบบ AI คำนวณทำนายทิศทางล่วงหน้า
+                if aiPredictEnabled then
+                    local velocity = (targetPos - lastTargetPosition) / (dt > 0 and dt or 0.016)
+                    targetPos = targetPos + (velocity * 0.1)
+                end
+                lastTargetPosition = closestTargetPart.Position
+
+                local targetCF = CFrame.lookAt(camera.CFrame.Position, targetPos)
+                camera.CFrame = camera.CFrame:Lerp(targetCF, math.clamp(dt * smoothSpeed, 0, 1))
+            end
+        end)
+    end
+end)
