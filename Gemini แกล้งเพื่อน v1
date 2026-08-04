@@ -1,0 +1,587 @@
+-- [[ รวมสคริปต์ ESP/CamLock (Global) + เมนูแกล้งเพื่อน ]] --
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local CoreGui = game:GetService("CoreGui")
+local StarterGui = game:GetService("StarterGui")
+local SoundService = game:GetService("SoundService")
+
+local localPlayer = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+
+-- Sound FX (ID: 138656991212198)
+local buttonSound = Instance.new("Sound")
+buttonSound.SoundId = "rbxassetid://138656991212198"
+buttonSound.Volume = 1
+buttonSound.Parent = SoundService
+
+local function playBtnSound()
+    pcall(function()
+        buttonSound:Play()
+    end)
+end
+
+-- สถานะระบบหลัก
+local espEnabled = true
+local camLockEnabled = true
+local speedEnabled = true
+local aiPredictEnabled = true 
+local autoShootEnabled = true 
+local isMinimized = false
+
+local customWalkSpeed = 35 
+local smoothSpeed = 15 
+
+pcall(function()
+    StarterGui:SetCore("SendNotification", {
+        Title = "System Status",
+        Text = "Global Lock & Troll Panel Loaded!",
+        Duration = 3
+    })
+end)
+
+----------------------------------------------------
+-- 1. สร้างหน้าจอ UI หลัก (ESP Panel & Troll Panel)
+----------------------------------------------------
+local targetParent = localPlayer:WaitForChild("PlayerGui")
+pcall(function()
+    targetParent = CoreGui
+end)
+
+if targetParent:FindFirstChild("Roblox_ESP_UI") then
+    targetParent.Roblox_ESP_UI:Destroy()
+end
+if targetParent:FindFirstChild("Roblox_Troll_UI") then
+    targetParent.Roblox_Troll_UI:Destroy()
+end
+
+-- [ A. หน้าต่าง ESP & CamLock ]
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "Roblox_ESP_UI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = targetParent
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 200, 0, 270)
+mainFrame.Position = UDim2.new(0.05, 0, 0.2, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Parent = screenGui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 8)
+corner.Parent = mainFrame
+
+local titleBar = Instance.new("Frame")
+titleBar.Name = "TitleBar"
+titleBar.Size = UDim2.new(1, 0, 0, 30)
+titleBar.BackgroundColor3 = Color3.fromRGB(40, 40, 48)
+titleBar.BorderSizePixel = 0
+titleBar.Active = true
+titleBar.Parent = mainFrame
+
+local titleCorner = Instance.new("UICorner")
+titleCorner.CornerRadius = UDim.new(0, 8)
+titleCorner.Parent = titleBar
+
+local titleText = Instance.new("TextLabel")
+titleText.Size = UDim2.new(1, -40, 1, 0)
+titleText.Position = UDim2.new(0, 10, 0, 0)
+titleText.BackgroundTransparency = 1
+titleText.Text = "Global Lock Panel"
+titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleText.TextXAlignment = Enum.TextXAlignment.Left
+titleText.Font = Enum.Font.SourceSansBold
+titleText.TextSize = 14
+titleText.Parent = titleBar
+
+local minBtn = Instance.new("TextButton")
+minBtn.Size = UDim2.new(0, 25, 0, 25)
+minBtn.Position = UDim2.new(1, -28, 0, 2.5)
+minBtn.BackgroundColor3 = Color3.fromRGB(55, 55, 60)
+minBtn.Text = "-"
+minBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+minBtn.Font = Enum.Font.SourceSansBold
+minBtn.TextSize = 18
+minBtn.Parent = titleBar
+
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Size = UDim2.new(1, -20, 0, 35)
+toggleBtn.Position = UDim2.new(0, 10, 0, 40)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(46, 125, 50)
+toggleBtn.Text = "ESP Green Glow: ON"
+toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleBtn.Font = Enum.Font.SourceSansBold
+toggleBtn.TextSize = 14
+toggleBtn.Parent = mainFrame
+
+local lockBtn = Instance.new("TextButton")
+lockBtn.Size = UDim2.new(1, -20, 0, 35)
+lockBtn.Position = UDim2.new(0, 10, 0, 85)
+lockBtn.BackgroundColor3 = Color3.fromRGB(46, 125, 50)
+lockBtn.Text = "CamLock (Global): ON"
+lockBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+lockBtn.Font = Enum.Font.SourceSansBold
+lockBtn.TextSize = 14
+lockBtn.Parent = mainFrame
+
+local autoShootBtn = Instance.new("TextButton")
+autoShootBtn.Size = UDim2.new(1, -20, 0, 35)
+autoShootBtn.Position = UDim2.new(0, 10, 0, 130)
+autoShootBtn.BackgroundColor3 = Color3.fromRGB(46, 125, 50)
+autoShootBtn.Text = "Auto Shoot: ON"
+autoShootBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+autoShootBtn.Font = Enum.Font.SourceSansBold
+autoShootBtn.TextSize = 14
+autoShootBtn.Parent = mainFrame
+
+local aiBtn = Instance.new("TextButton")
+aiBtn.Size = UDim2.new(1, -20, 0, 35)
+aiBtn.Position = UDim2.new(0, 10, 0, 175)
+aiBtn.BackgroundColor3 = Color3.fromRGB(46, 125, 50)
+aiBtn.Text = "AI Predictor: ON"
+aiBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+aiBtn.Font = Enum.Font.SourceSansBold
+aiBtn.TextSize = 14
+aiBtn.Parent = mainFrame
+
+local speedBtn = Instance.new("TextButton")
+speedBtn.Size = UDim2.new(1, -20, 0, 35)
+speedBtn.Position = UDim2.new(0, 10, 0, 220)
+speedBtn.BackgroundColor3 = Color3.fromRGB(46, 125, 50)
+speedBtn.Text = "Custom Speed: ON"
+speedBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+speedBtn.Font = Enum.Font.SourceSansBold
+speedBtn.TextSize = 14
+speedBtn.Parent = mainFrame
+
+for _, b in ipairs({minBtn, toggleBtn, lockBtn, autoShootBtn, aiBtn, speedBtn}) do
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, 6)
+    c.Parent = b
+end
+
+-- [ B. หน้าต่างรายชื่อแกล้งเพื่อน (Troll Menu) ]
+local trollGui = Instance.new("ScreenGui")
+trollGui.Name = "Roblox_Troll_UI"
+trollGui.ResetOnSpawn = false
+trollGui.Parent = targetParent
+
+local trollFrame = Instance.new("Frame")
+trollFrame.Name = "TrollFrame"
+trollFrame.Size = UDim2.new(0, 240, 0, 300)
+trollFrame.Position = UDim2.new(0.05, 0, 0.53, 0)
+trollFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+trollFrame.BorderSizePixel = 0
+trollFrame.Active = true
+trollFrame.Parent = trollGui
+
+local trollCorner = Instance.new("UICorner")
+trollCorner.CornerRadius = UDim.new(0, 8)
+trollCorner.Parent = trollFrame
+
+local trollTitle = Instance.new("TextLabel")
+trollTitle.Size = UDim2.new(1, 0, 0, 30)
+trollTitle.BackgroundColor3 = Color3.fromRGB(40, 40, 48)
+trollTitle.Text = "Troll Panel (รายชื่อในแมพ)"
+trollTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+trollTitle.Font = Enum.Font.SourceSansBold
+trollTitle.TextSize = 14
+trollTitle.Parent = trollFrame
+
+local trollTitleCorner = Instance.new("UICorner")
+trollTitleCorner.CornerRadius = UDim.new(0, 8)
+trollTitleCorner.Parent = trollTitle
+
+local scrollFrame = Instance.new("ScrollingFrame")
+scrollFrame.Size = UDim2.new(1, -10, 1, -40)
+scrollFrame.Position = UDim2.new(0, 5, 0, 35)
+scrollFrame.BackgroundTransparency = 1
+scrollFrame.BorderSizePixel = 0
+scrollFrame.ScrollBarThickness = 4
+scrollFrame.Parent = trollFrame
+
+local uiList = Instance.new("UIListLayout")
+uiList.SortOrder = Enum.SortOrder.LayoutOrder
+uiList.Padding = UDim.new(0, 6)
+uiList.Parent = scrollFrame
+
+----------------------------------------------------
+-- 2. ระบบ Drag หน้าจอ (ลากหน้าต่างได้ทั้งสองอัน)
+----------------------------------------------------
+local function makeDraggable(bar, target)
+    local dragging, dragStart, startPos
+    bar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = target.Position
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            target.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+end
+
+makeDraggable(titleBar, mainFrame)
+makeDraggable(trollTitle, trollFrame)
+
+----------------------------------------------------
+-- 3. ปุ่มกดเปิด/ปิดหน้าต่าง ESP
+----------------------------------------------------
+minBtn.MouseButton1Click:Connect(function()
+    playBtnSound()
+    isMinimized = not isMinimized
+    mainFrame.Size = isMinimized and UDim2.new(0, 200, 0, 30) or UDim2.new(0, 200, 0, 270)
+    toggleBtn.Visible = not isMinimized
+    lockBtn.Visible = not isMinimized
+    autoShootBtn.Visible = not isMinimized
+    aiBtn.Visible = not isMinimized
+    speedBtn.Visible = not isMinimized
+    minBtn.Text = isMinimized and "+" or "-"
+end)
+
+toggleBtn.MouseButton1Click:Connect(function()
+    playBtnSound()
+    espEnabled = not espEnabled
+    toggleBtn.Text = espEnabled and "ESP Green Glow: ON" or "ESP Green Glow: OFF"
+    toggleBtn.BackgroundColor3 = espEnabled and Color3.fromRGB(46, 125, 50) or Color3.fromRGB(198, 40, 40)
+end)
+
+lockBtn.MouseButton1Click:Connect(function()
+    playBtnSound()
+    camLockEnabled = not camLockEnabled
+    lockBtn.Text = camLockEnabled and "CamLock (Global): ON" or "CamLock: OFF"
+    lockBtn.BackgroundColor3 = camLockEnabled and Color3.fromRGB(46, 125, 50) or Color3.fromRGB(198, 40, 40)
+end)
+
+autoShootBtn.MouseButton1Click:Connect(function()
+    playBtnSound()
+    autoShootEnabled = not autoShootEnabled
+    autoShootBtn.Text = autoShootEnabled and "Auto Shoot: ON" or "Auto Shoot: OFF"
+    autoShootBtn.BackgroundColor3 = autoShootEnabled and Color3.fromRGB(46, 125, 50) or Color3.fromRGB(198, 40, 40)
+end)
+
+aiBtn.MouseButton1Click:Connect(function()
+    playBtnSound()
+    aiPredictEnabled = not aiPredictEnabled
+    aiBtn.Text = aiPredictEnabled and "AI Predictor: ON" or "AI Predictor: OFF"
+    aiBtn.BackgroundColor3 = aiPredictEnabled and Color3.fromRGB(46, 125, 50) or Color3.fromRGB(198, 40, 40)
+end)
+
+speedBtn.MouseButton1Click:Connect(function()
+    playBtnSound()
+    speedEnabled = not speedEnabled
+    speedBtn.Text = speedEnabled and "Custom Speed: ON" or "Custom Speed: OFF"
+    speedBtn.BackgroundColor3 = speedEnabled and Color3.fromRGB(46, 125, 50) or Color3.fromRGB(198, 40, 40)
+    
+    if not speedEnabled then
+        pcall(function()
+            local hum = localPlayer.Character and localPlayer.Character:FindFirstChildOfClass("Humanoid")
+            if hum then hum.WalkSpeed = 16 end
+        end)
+    end
+end)
+
+----------------------------------------------------
+-- 4. ฟังก์ชัน Wall Check & ESP
+----------------------------------------------------
+local function isVisible(targetPart)
+    local character = localPlayer.Character
+    if not character then return false end
+
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+    raycastParams.FilterDescendantsInstances = {character, camera}
+    raycastParams.IgnoreWater = true
+
+    local origin = camera.CFrame.Position
+    local direction = targetPart.Position - origin
+    local raycastResult = workspace:Raycast(origin, direction, raycastParams)
+
+    if not raycastResult or raycastResult.Instance:IsDescendantOf(targetPart.Parent) then
+        return true
+    end
+    return false
+end
+
+local function applyESP(plr)
+    if plr == localPlayer then return end
+    
+    local function update()
+        if not plr.Character then return end
+        
+        local hl = plr.Character:FindFirstChild("GreenGlow_Highlight")
+        if not hl then
+            hl = Instance.new("Highlight")
+            hl.Name = "GreenGlow_Highlight"
+            hl.FillColor = Color3.fromRGB(0, 255, 0)
+            hl.FillTransparency = 0.4
+            hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+            hl.OutlineTransparency = 0
+            hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            hl.Parent = plr.Character
+        end
+        hl.Enabled = espEnabled
+
+        local head = plr.Character:FindFirstChild("Head")
+        if head then
+            local bg = head:FindFirstChild("DistanceTag")
+            if not bg then
+                bg = Instance.new("BillboardGui")
+                bg.Name = "DistanceTag"
+                bg.Size = UDim2.new(0, 100, 0, 40)
+                bg.StudsOffset = Vector3.new(0, 2, 0)
+                bg.AlwaysOnTop = true
+                bg.Parent = head
+
+                local txt = Instance.new("TextLabel")
+                txt.Name = "DistText"
+                txt.Size = UDim2.new(1, 0, 1, 0)
+                txt.BackgroundTransparency = 1
+                txt.TextColor3 = Color3.fromRGB(0, 255, 0)
+                txt.TextStrokeTransparency = 0
+                txt.Font = Enum.Font.SourceSansBold
+                txt.TextSize = 14
+                txt.Parent = bg
+            end
+            bg.Enabled = espEnabled
+        end
+    end
+    
+    plr.CharacterAdded:Connect(function()
+        task.wait(0.5)
+        update()
+    end)
+    if plr.Character then update() end
+end
+
+for _, p in ipairs(Players:GetPlayers()) do applyESP(p) end
+Players.PlayerAdded:Connect(applyESP)
+
+----------------------------------------------------
+-- 5. ระบบอัปเดตรายชื่อผู้เล่นสำหรับแกล้งเพื่อน
+----------------------------------------------------
+local function updateTrollList()
+    for _, child in ipairs(scrollFrame:GetChildren()) do
+        if child:IsA("Frame") then
+            child:Destroy()
+        end
+    end
+
+    local count = 0
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= localPlayer then
+            count = count + 1
+            local itemFrame = Instance.new("Frame")
+            itemFrame.Size = UDim2.new(1, -6, 0, 50)
+            itemFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+            itemFrame.Parent = scrollFrame
+
+            local ic = Instance.new("UICorner")
+            ic.CornerRadius = UDim.new(0, 6)
+            ic.Parent = itemFrame
+
+            local nameTag = Instance.new("TextLabel")
+            nameTag.Size = UDim2.new(1, -10, 0, 20)
+            nameTag.Position = UDim2.new(0, 5, 0, 2)
+            nameTag.BackgroundTransparency = 1
+            nameTag.Text = p.DisplayName .. " (@" .. p.Name .. ")"
+            nameTag.TextColor3 = Color3.fromRGB(255, 255, 255)
+            nameTag.Font = Enum.Font.SourceSansBold
+            nameTag.TextSize = 12
+            nameTag.TextXAlignment = Enum.TextXAlignment.Left
+            nameTag.Parent = itemFrame
+
+            -- 1. ปุ่มดีดออก
+            local yeetBtn = Instance.new("TextButton")
+            yeetBtn.Size = UDim2.new(0.31, 0, 0, 20)
+            yeetBtn.Position = UDim2.new(0, 4, 0, 25)
+            yeetBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+            yeetBtn.Text = "ดีดออก"
+            yeetBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            yeetBtn.Font = Enum.Font.SourceSansBold
+            yeetBtn.TextSize = 11
+            yeetBtn.Parent = itemFrame
+
+            -- 2. ปุ่มหมุนติ้ว
+            local spinBtn = Instance.new("TextButton")
+            spinBtn.Size = UDim2.new(0.31, 0, 0, 20)
+            spinBtn.Position = UDim2.new(0.34, 0, 0, 25)
+            spinBtn.BackgroundColor3 = Color3.fromRGB(40, 130, 200)
+            spinBtn.Text = "หมุนติ้ว"
+            spinBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            spinBtn.Font = Enum.Font.SourceSansBold
+            spinBtn.TextSize = 11
+            spinBtn.Parent = itemFrame
+
+            -- 3. ปุ่มระเบิด
+            local boomBtn = Instance.new("TextButton")
+            boomBtn.Size = UDim2.new(0.31, 0, 0, 20)
+            boomBtn.Position = UDim2.new(0.68, 0, 0, 25)
+            boomBtn.BackgroundColor3 = Color3.fromRGB(220, 120, 30)
+            boomBtn.Text = "ระเบิด"
+            boomBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            boomBtn.Font = Enum.Font.SourceSansBold
+            boomBtn.TextSize = 11
+            boomBtn.Parent = itemFrame
+
+            for _, b in ipairs({yeetBtn, spinBtn, boomBtn}) do
+                local bc = Instance.new("UICorner")
+                bc.CornerRadius = UDim.new(0, 4)
+                bc.Parent = b
+            end
+
+            -- ฟังก์ชันทำงานเมื่อกดปุ่มแกล้ง (ใช้งานได้เฉพาะในแมพที่คุณเป็นเจ้าของ/Admin)
+            yeetBtn.MouseButton1Click:Connect(function()
+                playBtnSound()
+                pcall(function()
+                    local hrp = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
+                    if hrp then
+                        local bv = Instance.new("BodyVelocity")
+                        bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+                        bv.Velocity = Vector3.new(math.random(-800, 800), 1500, math.random(-800, 800))
+                        bv.Parent = hrp
+                        local bav = Instance.new("BodyAngularVelocity")
+                        bav.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
+                        bav.AngularVelocity = Vector3.new(0, 200, 0)
+                        bav.Parent = hrp
+                        task.wait(2)
+                        bv:Destroy()
+                        bav:Destroy()
+                    end
+                end)
+            end)
+
+            spinBtn.MouseButton1Click:Connect(function()
+                playBtnSound()
+                pcall(function()
+                    local hrp = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
+                    if hrp then
+                        local bav = hrp:FindFirstChild("TrollSpin")
+                        if bav then
+                            bav:Destroy()
+                        else
+                            bav = Instance.new("BodyAngularVelocity")
+                            bav.Name = "TrollSpin"
+                            bav.MaxTorque = Vector3.new(0, math.huge, 0)
+                            bav.AngularVelocity = Vector3.new(0, 120, 0)
+                            bav.Parent = hrp
+                        end
+                    end
+                end)
+            end)
+
+            boomBtn.MouseButton1Click:Connect(function()
+                playBtnSound()
+                pcall(function()
+                    local hrp = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
+                    if hrp then
+                        local explosion = Instance.new("Explosion")
+                        explosion.Position = hrp.Position
+                        explosion.BlastRadius = 15
+                        explosion.BlastPressure = 1000000
+                        explosion.Parent = workspace
+                    end
+                end)
+            end)
+        end
+    end
+    scrollFrame.CanvasSize = UDim2.new(0, 0, 0, count * 56)
+end
+
+Players.PlayerAdded:Connect(updateTrollList)
+Players.PlayerRemoving:Connect(updateTrollList)
+updateTrollList()
+
+----------------------------------------------------
+-- 6. Main Loop (Global Lock & ESP Distance)
+----------------------------------------------------
+local lastTargetPosition = Vector3.new(0, 0, 0)
+local lastShootTime = 0
+
+_G.ESP_Loop = RunService.RenderStepped:Connect(function(dt)
+    local myChar = localPlayer.Character
+    local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
+
+    if espEnabled and myHRP then
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= localPlayer and p.Character then
+                local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+                local head = p.Character:FindFirstChild("Head")
+                if hrp and head then
+                    local bg = head:FindFirstChild("DistanceTag")
+                    if bg and bg.Enabled then
+                        local dist = math.floor((hrp.Position - myHRP.Position).Magnitude)
+                        local txt = bg:FindFirstChild("DistText")
+                        if txt then
+                            txt.Text = "[" .. dist .. "m]"
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    if speedEnabled then
+        pcall(function()
+            local hum = myChar and myChar:FindFirstChildOfClass("Humanoid")
+            if hum then hum.WalkSpeed = customWalkSpeed end
+        end)
+    end
+
+    if camLockEnabled and myHRP then
+        pcall(function()
+            local closestTargetPart = nil
+            local minDistance = math.huge
+
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p ~= localPlayer and p.Character then
+                    local hum = p.Character:FindFirstChildOfClass("Humanoid")
+                    local head = p.Character:FindFirstChild("Head")
+                    local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+
+                    if hum and hum.Health > 0 and head and hrp then
+                        local dist = (hrp.Position - myHRP.Position).Magnitude
+                        
+                        if dist < minDistance and isVisible(head) then
+                            minDistance = dist
+                            closestTargetPart = head
+                        end
+                    end
+                end
+            end
+
+            if closestTargetPart then
+                local targetPos = closestTargetPart.Position
+                
+                if aiPredictEnabled then
+                    local velocity = (targetPos - lastTargetPosition) / (dt > 0 and dt or 0.016)
+                    targetPos = targetPos + (velocity * 0.1)
+                end
+                lastTargetPosition = closestTargetPart.Position
+
+                local targetCF = CFrame.lookAt(camera.CFrame.Position, targetPos)
+                camera.CFrame = camera.CFrame:Lerp(targetCF, math.clamp(dt * smoothSpeed, 0, 1))
+
+                if autoShootEnabled and isVisible(closestTargetPart) then
+                    local tool = myChar:FindFirstChildOfClass("Tool")
+                    if tool and (tick() - lastShootTime > 0.05) then
+                        lastShootTime = tick()
+                        tool:Activate()
+                    end
+                end
+            end
+        end)
+    end
+end)
