@@ -1,0 +1,335 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local localPlayer = Players.LocalPlayer
+local playerGui = localPlayer:WaitForChild("PlayerGui")
+local camera = workspace.CurrentCamera
+
+-- สถานะระบบ (เปิดทั้งหมดเป็นค่าเริ่มต้น)
+local espEnabled = true
+local camLockEnabled = true
+local speedJumpEnabled = true
+local isMinimized = false
+local visuals = {}
+
+local customWalkSpeed = 30
+local customJumpPower = 80
+local lockSpeedMultiplier = 3.0 
+
+----------------------------------------------------
+-- 1. สร้างหน้าจอ UI
+----------------------------------------------------
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "ESP_Control_UI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = playerGui
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 200, 0, 210)
+mainFrame.Position = UDim2.new(0.05, 0, 0.2, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Parent = screenGui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 8)
+corner.Parent = mainFrame
+
+local titleBar = Instance.new("Frame")
+titleBar.Name = "TitleBar"
+titleBar.Size = UDim2.new(1, 0, 0, 30)
+titleBar.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+titleBar.BorderSizePixel = 0
+titleBar.Active = true
+titleBar.Parent = mainFrame
+
+local titleCorner = Instance.new("UICorner")
+titleCorner.CornerRadius = UDim.new(0, 8)
+titleCorner.Parent = titleBar
+
+local titleText = Instance.new("TextLabel")
+titleText.Size = UDim2.new(1, -40, 1, 0)
+titleText.Position = UDim2.new(0, 10, 0, 0)
+titleText.BackgroundTransparency = 1
+titleText.Text = "Glow ESP + Tracer"
+titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleText.TextXAlignment = Enum.TextXAlignment.Left
+titleText.Font = Enum.Font.SourceSansBold
+titleText.TextSize = 16
+titleText.Parent = titleBar
+
+local minBtn = Instance.new("TextButton")
+minBtn.Name = "MinButton"
+minBtn.Size = UDim2.new(0, 25, 0, 25)
+minBtn.Position = UDim2.new(1, -28, 0, 2.5)
+minBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 65)
+minBtn.Text = "-"
+minBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+minBtn.Font = Enum.Font.SourceSansBold
+minBtn.TextSize = 18
+minBtn.Parent = titleBar
+
+local minCorner = Instance.new("UICorner")
+minCorner.CornerRadius = UDim.new(0, 4)
+minCorner.Parent = minBtn
+
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Name = "ToggleButton"
+toggleBtn.Size = UDim2.new(1, -20, 0, 35)
+toggleBtn.Position = UDim2.new(0, 10, 0, 40)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(46, 125, 50)
+toggleBtn.Text = "ESP: ON"
+toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleBtn.Font = Enum.Font.SourceSansBold
+toggleBtn.TextSize = 15
+toggleBtn.Parent = mainFrame
+
+local btnCorner = Instance.new("UICorner")
+btnCorner.CornerRadius = UDim.new(0, 6)
+btnCorner.Parent = toggleBtn
+
+local lockBtn = Instance.new("TextButton")
+lockBtn.Name = "LockButton"
+lockBtn.Size = UDim2.new(1, -20, 0, 35)
+lockBtn.Position = UDim2.new(0, 10, 0, 85)
+lockBtn.BackgroundColor3 = Color3.fromRGB(46, 125, 50)
+lockBtn.Text = "3x TurboLock: ON"
+lockBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+lockBtn.Font = Enum.Font.SourceSansBold
+lockBtn.TextSize = 15
+lockBtn.Parent = mainFrame
+
+local lockCorner = Instance.new("UICorner")
+lockCorner.CornerRadius = UDim.new(0, 6)
+lockCorner.Parent = lockBtn
+
+local speedBtn = Instance.new("TextButton")
+speedBtn.Name = "SpeedButton"
+speedBtn.Size = UDim2.new(1, -20, 0, 35)
+speedBtn.Position = UDim2.new(0, 10, 0, 130)
+speedBtn.BackgroundColor3 = Color3.fromRGB(46, 125, 50)
+speedBtn.Text = "Speed/Jump: ON"
+speedBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+speedBtn.Font = Enum.Font.SourceSansBold
+speedBtn.TextSize = 15
+speedBtn.Parent = mainFrame
+
+local speedCorner = Instance.new("UICorner")
+speedCorner.CornerRadius = UDim.new(0, 6)
+speedCorner.Parent = speedBtn
+
+----------------------------------------------------
+-- 2. ระบบ Drag เฉพาะ TitleBar (แก้ปัญหาติดนิ้ว)
+----------------------------------------------------
+local dragging = false
+local dragStart = Vector2.zero
+local startPos = UDim2.new()
+
+titleBar.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		dragging = true
+		dragStart = input.Position
+		startPos = mainFrame.Position
+		
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				dragging = false
+			end
+		end)
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+		local delta = input.Position - dragStart
+		mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+	end
+end)
+
+minBtn.MouseButton1Click:Connect(function()
+	isMinimized = not isMinimized
+	if isMinimized then
+		mainFrame.Size = UDim2.new(0, 200, 0, 30)
+		toggleBtn.Visible = false
+		lockBtn.Visible = false
+		speedBtn.Visible = false
+		minBtn.Text = "+"
+	else
+		mainFrame.Size = UDim2.new(0, 200, 0, 210)
+		toggleBtn.Visible = true
+		lockBtn.Visible = true
+		speedBtn.Visible = true
+		minBtn.Text = "-"
+	end
+end)
+
+toggleBtn.MouseButton1Click:Connect(function()
+	espEnabled = not espEnabled
+	toggleBtn.Text = espEnabled and "ESP: ON" or "ESP: OFF"
+	toggleBtn.BackgroundColor3 = espEnabled and Color3.fromRGB(46, 125, 50) or Color3.fromRGB(198, 40, 40)
+	
+	if not espEnabled then
+		for _, data in pairs(visuals) do
+			if data.Highlight then data.Highlight.Enabled = false end
+			if data.Line then data.Line.Visible = false end
+		end
+	end
+end)
+
+lockBtn.MouseButton1Click:Connect(function()
+	camLockEnabled = not camLockEnabled
+	lockBtn.Text = camLockEnabled and "3x TurboLock: ON" or "3x TurboLock: OFF"
+	lockBtn.BackgroundColor3 = camLockEnabled and Color3.fromRGB(46, 125, 50) or Color3.fromRGB(198, 40, 40)
+end)
+
+speedBtn.MouseButton1Click:Connect(function()
+	speedJumpEnabled = not speedJumpEnabled
+	speedBtn.Text = speedJumpEnabled and "Speed/Jump: ON" or "Speed/Jump: OFF"
+	speedBtn.BackgroundColor3 = speedJumpEnabled and Color3.fromRGB(46, 125, 50) or Color3.fromRGB(198, 40, 40)
+	
+	if not speedJumpEnabled then
+		local myChar = localPlayer.Character
+		local myHumanoid = myChar and myChar:FindFirstChildOfClass("Humanoid")
+		if myHumanoid then
+			myHumanoid.WalkSpeed = 16
+			pcall(function() myHumanoid.JumpPower = 50 end)
+			pcall(function() myHumanoid.JumpHeight = 7.2 end)
+		end
+	end
+end)
+
+----------------------------------------------------
+-- 3. ระบบ ESP (เส้น Tracer หนาๆ + Highlight เรืองแสง)
+----------------------------------------------------
+local function createVisuals(targetPlayer)
+	if targetPlayer == localPlayer then return end
+	local data = {}
+
+	-- เส้น Tracer จากตัวเราไปหาผู้เล่นคนอื่น (ความหนา 0.1 หรือปรับเพิ่มได้)
+	local line = Instance.new("LineHandleAdornment")
+	line.Color3 = Color3.fromRGB(0, 255, 0)
+	line.Thickness = 6 -- ปรับความหนาของเส้นที่นี่ (เลขยิ่งมากยิ่งหนา)
+	line.AlwaysOnTop = true
+	line.ZIndex = 10
+	line.Parent = workspace
+	data.Line = line
+
+	-- Highlight เรืองแสงทะลุกำแพง
+	local highlight = Instance.new("Highlight")
+	highlight.Name = "ESP_Highlight"
+	highlight.FillColor = Color3.fromRGB(0, 255, 0)
+	highlight.FillTransparency = 0.5
+	highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+	highlight.OutlineTransparency = 0
+	highlight.Adornee = targetPlayer.Character
+	highlight.Parent = playerGui
+	data.Highlight = highlight
+
+	targetPlayer.CharacterAdded:Connect(function(newChar)
+		highlight.Adornee = newChar
+	end)
+
+	visuals[targetPlayer] = data
+end
+
+local function removeVisuals(targetPlayer)
+	if visuals[targetPlayer] then
+		if visuals[targetPlayer].Line then visuals[targetPlayer].Line:Destroy() end
+		if visuals[targetPlayer].Highlight then visuals[targetPlayer].Highlight:Destroy() end
+		visuals[targetPlayer] = nil
+	end
+end
+
+for _, p in ipairs(Players:GetPlayers()) do createVisuals(p) end
+Players.PlayerAdded:Connect(createVisuals)
+Players.PlayerRemoving:Connect(removeVisuals)
+
+----------------------------------------------------
+-- 4. ระบบค้นหาเป้าหมาย (เช็คกำแพงบังสำหรับ CamLock)
+----------------------------------------------------
+local raycastParams = RaycastParams.new()
+raycastParams.FilterType = RaycastParamsFilterType.Exclude
+raycastParams.IgnoreWater = true
+
+local function getFastestTarget(myChar, myHRP)
+	local closestTarget = nil
+	local shortestDist = math.huge
+	local camPos = camera.CFrame.Position
+
+	for targetPlayer, _ in pairs(visuals) do
+		local tChar = targetPlayer.Character
+		local tHRP = tChar and tChar:FindFirstChild("HumanoidRootPart")
+		local tHum = tChar and tChar:FindFirstChild("Humanoid")
+		local tHead = tChar and tChar:FindFirstChild("Head")
+
+		if tHRP and tHum and tHum.Health > 0 and tHead then
+			local dist = (tHRP.Position - myHRP.Position).Magnitude
+			if dist < shortestDist then
+				raycastParams.FilterDescendantsInstances = {myChar, tChar}
+				local result = workspace:Raycast(camPos, tHead.Position - camPos, raycastParams)
+				
+				if result == nil then
+					shortestDist = dist
+					closestTarget = tHead
+				end
+			end
+		end
+	end
+
+	return closestTarget
+end
+
+----------------------------------------------------
+-- 5. Main Loop
+----------------------------------------------------
+RunService.RenderStepped:Connect(function(dt)
+	local myChar = localPlayer.Character
+	local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
+	local myHumanoid = myChar and myChar:FindFirstChildOfClass("Humanoid")
+
+	-- ควบคุม Speed / Jump
+	if myHumanoid and speedJumpEnabled then
+		myHumanoid.WalkSpeed = customWalkSpeed
+		pcall(function() myHumanoid.JumpPower = customJumpPower end)
+		pcall(function() myHumanoid.JumpHeight = 15 end)
+	end
+
+	-- อัปเดต ESP (เส้น Tracer + Highlight)
+	for targetPlayer, data in pairs(visuals) do
+		local tChar = targetPlayer.Character
+		local tHRP = tChar and tChar:FindFirstChild("HumanoidRootPart")
+		local tHum = tChar and tChar:FindFirstChild("Humanoid")
+
+		if espEnabled and myHRP and tHRP and tHum and tHum.Health > 0 then
+			-- แสดงเส้น Tracer จากเราไปหาเป้าหมาย
+			data.Line.Visible = true
+			data.Line.Adornee = myHRP
+			data.Line.Length = (tHRP.Position - myHRP.Position).Magnitude
+			data.Line.CFrame = CFrame.lookAt(myHRP.Position, tHRP.Position)
+
+			-- แสดง Highlight เรืองแสง
+			if data.Highlight then
+				data.Highlight.Enabled = true
+				data.Highlight.Adornee = tChar
+			end
+		else
+			if data.Line then data.Line.Visible = false end
+			if data.Highlight then data.Highlight.Enabled = false end
+		end
+	end
+
+	-- ระบบ CamLock 3 เท่า
+	if camLockEnabled and myHRP then
+		local targetHead = getFastestTarget(myChar, myHRP)
+		if targetHead then
+			local currentCF = camera.CFrame
+			local targetCF = CFrame.lookAt(currentCF.Position, targetHead.Position)
+			
+			local alpha = math.clamp(dt * 30 * lockSpeedMultiplier, 0, 1)
+			camera.CFrame = currentCF:Lerp(targetCF, alpha)
+		end
+	end
+end)
