@@ -1,0 +1,42 @@
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+local fishingEvent = ReplicatedStorage:WaitForChild("FishingAutomationEvent")
+
+local autoFishActive = true
+local cooldown = 0
+
+-- ลูปเช็คสถานะเกมแบบเรียลไทม์
+RunService.RenderStepped:Connect(function(dt)
+    if not autoFishActive then return end
+    
+    cooldown = cooldown - dt
+    if cooldown <= 0 then
+        -- จำลองการทำงานอัตโนมัติทุกๆ 2 วินาที (ป้องกันส่งคำสั่งรัวเกินไปจนเซิร์ฟเวอร์แลค)
+        pcall(function()
+            fishingEvent:FireServer("StartFishing")
+        end)
+        
+        cooldown = 2.0 -- กำหนดหน่วงเวลา
+    end
+    
+    -- ค้นหา UI มินิเกมเพื่อล็อคแถบหรือช่วยกด (ปลอดภัยและไม่พัง)
+    for _, gui in ipairs(PlayerGui:GetDescendants()) do
+        if gui:IsA("Frame") and (gui.Name:lower():find("bar") or gui.Name:lower():find("progress")) then
+            pcall(function()
+                local indicator = gui:FindFirstChild("Indicator") or gui:FindFirstChild("WhiteLine")
+                local safeZone = gui:FindFirstChild("SafeZone") or gui:FindFirstChild("Container")
+                
+                if indicator and safeZone then
+                    -- ล็อคอินดิเคเตอร์ให้อยู่ในโซนปลอดภัยอัตโนมัติ
+                    indicator.Position = safeZone.Position
+                end
+            end)
+        end
+    end
+end)
+
+print("Fishing Automation Script Successfully Combined and Loaded! 🎣")
