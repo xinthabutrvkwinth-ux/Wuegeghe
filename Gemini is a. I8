@@ -1,0 +1,168 @@
+-- [[ FPS GAME BYPASS EDITION: FIXED CAMLOCK & AUTO SHOOT ]] --
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local CoreGui = game:GetService("CoreGui")
+local StarterGui = game:GetService("StarterGui")
+local SoundService = game:GetService("SoundService")
+
+local localPlayer = Players.LocalPlayer
+
+-- System State
+local espEnabled = true
+local camLockEnabled = true
+local autoShootEnabled = true
+local speedEnabled = true
+local customWalkSpeed = 35
+
+-- UI Setup
+local targetParent = localPlayer:WaitForChild("PlayerGui")
+pcall(function() targetParent = CoreGui end)
+
+if targetParent:FindFirstChild("FPS_Bypass_UI") then targetParent.FPS_Bypass_UI:Destroy() end
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "FPS_Bypass_UI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = targetParent
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 200, 0, 220)
+mainFrame.Position = UDim2.new(0.02, 0, 0.2, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = screenGui
+
+local corner = Instance.new("UICorner") corner.CornerRadius = UDim.new(0, 8) corner.Parent = mainFrame
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 30)
+title.Text = "FPS Bypass Menu"
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 12
+title.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+title.Parent = mainFrame
+
+local titleCorner = Instance.new("UICorner") titleCorner.CornerRadius = UDim.new(0, 8) titleCorner.Parent = title
+
+local list = Instance.new("UIListLayout")
+list.Padding = UDim.new(0, 5)
+list.SortOrder = Enum.SortOrder.LayoutOrder
+list.Parent = mainFrame
+
+local function createToggle(name, default, callback)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -10, 0, 32)
+    btn.Position = UDim2.new(0, 5, 0, 0)
+    btn.BackgroundColor3 = default and Color3.fromRGB(0, 150, 255) or Color3.fromRGB(60, 60, 60)
+    btn.Text = name .. ": " .. (default and "ON" or "OFF")
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Font = Enum.Font.Gotham
+    btn.TextSize = 11
+    btn.Parent = mainFrame
+    
+    local c = Instance.new("UICorner") c.CornerRadius = UDim.new(0, 6) c.Parent = btn
+
+    local st = default
+    btn.MouseButton1Click:Connect(function()
+        st = not st
+        btn.BackgroundColor3 = st and Color3.fromRGB(0, 150, 255) or Color3.fromRGB(60, 60, 60)
+        btn.Text = name .. ": " .. (st and "ON" or "OFF")
+        callback(st)
+    end)
+end
+
+createToggle("ESP Glow", espEnabled, function(s) espEnabled = s end)
+createToggle("FPS CamLock", camLockEnabled, function(s) camLockEnabled = s end)
+createToggle("Auto Shoot", autoShootEnabled, function(s) autoShootEnabled = s end)
+createToggle("Speed (35)", speedEnabled, function(s) speedEnabled = s end)
+
+----------------------------------------------------
+-- CORE LOGIC (FPS ENGINE BYPASS)
+----------------------------------------------------
+local function getTargetHead(char)
+    if not char then return nil end
+    return char:FindFirstChild("Head") or char:FindFirstChild("Hitbox") or char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso")
+end
+
+-- Bypass ESP
+local function applyGlow(plr)
+    if plr == localPlayer then return end
+    local function update()
+        if plr.Character then
+            local hl = plr.Character:FindFirstChild("FPS_Highlight")
+            if not hl then
+                hl = Instance.new("Highlight")
+                hl.Name = "FPS_Highlight"
+                hl.FillColor = Color3.fromRGB(255, 0, 0)
+                hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+                hl.Parent = plr.Character
+            end
+            hl.Enabled = espEnabled
+        end
+    end
+    plr.CharacterAdded:Connect(function() task.wait(0.5) update() end)
+    if plr.Character then update() end
+end
+
+for _, p in ipairs(Players:GetPlayers()) do applyGlow(p) end
+Players.PlayerAdded:Connect(applyGlow)
+
+-- Render Loop Override
+if _G.FPS_Loop then _G.FPS_Loop:Disconnect() end
+
+local lastShoot = 0
+
+_G.FPS_Loop = RunService.RenderStepped:Connect(function()
+    local cam = workspace.CurrentCamera
+    local myChar = localPlayer.Character
+    
+    -- Speed Hack
+    if speedEnabled and myChar then
+        local hum = myChar:FindFirstChildOfClass("Humanoid")
+        if hum then hum.WalkSpeed = customWalkSpeed end
+    end
+
+    -- CamLock & AutoShoot
+    if camLockEnabled and cam then
+        local closestPart = nil
+        local minDist = math.huge
+
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= localPlayer and p.Character then
+                local targetPart = getTargetHead(p.Character)
+                if targetPart then
+                    -- คำนวณระยะทางบนหน้าจอ (Viewport Distance)
+                    local screenPos, onScreen = cam:WorldToViewportPoint(targetPart.Position)
+                    if onScreen then
+                        local mousePos = Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y / 2)
+                        local dist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+                        if dist < minDist then
+                            minDist = dist
+                            closestPart = targetPart
+                        end
+                    end
+                end
+            end
+        end
+
+        if closestPart then
+            -- บังคับมุมกล้องแบบ Direct CFrame LookAt
+            cam.CFrame = CFrame.new(cam.CFrame.Position, closestPart.Position)
+
+            -- Auto Click / Shoot Trigger
+            if autoShootEnabled and (tick() - lastShoot > 0.08) then
+                lastShoot = tick()
+                pcall(function()
+                    mouse1click() -- สำหรับ Executer ที่รองรับ Mouse Event
+                end)
+                pcall(function()
+                    local tool = myChar and myChar:FindFirstChildOfClass("Tool")
+                    if tool then tool:Activate() end
+                end)
+            end
+        end
+    end
+end)
