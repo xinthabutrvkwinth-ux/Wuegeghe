@@ -1,0 +1,367 @@
+เธเธฑเธ”เนเธเธงเธฑเธขเธฃเธธเนเธ เธเธตเนเธเธทเธญเธชเธเธฃเธดเธเธ•เน Roblox เนเธเธเธเธฑเธ”เน€เธ•เนเธกเธชเธณเธซเธฃเธฑเธเนเธชเนเนเธ LocalScript เน€เธเธทเนเธญเธ—เธณเธฃเธฐเธเธเธฅเนเธญเธเน€เธเนเธฒเธซเธกเธฒเธข เนเธชเธ”เธ ESP (เธเธฅเนเธญเธเน€เธเธตเธขเธง 2x2 เธเธฃเนเธญเธกเธฃเธฐเธขเธฐเธ—เธฒเธ) เนเธฅเธฐเธฅเธฒเธเน€เธชเนเธเธเธฒเธเธ•เธฑเธงเน€เธฃเธฒเนเธเธซเธฒเธจเธฑเธ•เธฃเธน เธเธฃเนเธญเธก UI เธชเนเธ•เธฅเน Windows 11 เน€เธเธตเธขเธเน เธชเธงเธขเน เนเธเนเธ”เธชเธฐเธญเธฒเธ” เธฃเธฑเธเธฅเธทเนเธ เนเธกเนเธกเธตเธชเธฐเธ”เธธเธ” เธเธฅเธญเธ”เธ เธฑเธขเนเธฃเนเธเธฑเนเธ
+
+เน€เธญเธฒเนเธเธงเธฒเธเนเธ `StarterPlayerScripts` เนเธฅเนเธงเธฃเธฑเธเนเธ”เนเน€เธฅเธข! ๐”ฅ
+
+```lua
+-- Services
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+-- UI Setup (Windows 11 Style)
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "Win11ESP_GUI"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = CoreGui
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 220, 0, 140)
+MainFrame.Position = UDim2.new(0.02, 0, 0.2, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(32, 32, 32)
+MainFrame.BorderSizePixel = 0
+MainFrame.Parent = ScreenGui
+
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 8)
+UICorner.Parent = MainFrame
+
+local UIStroke = Instance.new("UIStroke")
+UIStroke.Color = Color3.fromRGB(60, 60, 60)
+UIStroke.Thickness = 1
+UIStroke.Parent = MainFrame
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 35)
+Title.BackgroundTransparency = 1
+Title.Text = "  Win11 Radar ESP"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 14
+Title.Font = Enum.Font.SegoeUIEmoji
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = MainFrame
+
+local ToggleBtn = Instance.new("TextButton")
+ToggleBtn.Size = UDim2.new(0.9, 0, 0, 40)
+ToggleBtn.Position = UDim2.new(0.05, 0, 0.45, 0)
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
+ToggleBtn.Text = "Toggle ESP: ON"
+ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleBtn.TextSize = 14
+ToggleBtn.Font = Enum.Font.SegoeUI
+ToggleBtn.Parent = MainFrame
+
+local BtnCorner = Instance.new("UICorner")
+BtnCorner.CornerRadius = UDim.new(0, 6)
+BtnCorner.Parent = ToggleBtn
+
+-- ESP Storage
+local espObjects = {}
+local espEnabled = true
+
+ToggleBtn.MouseButton1Click:Connect(function()
+    espEnabled = not espEnabled
+    if espEnabled then
+        ToggleBtn.Text = "Toggle ESP: ON"
+        ToggleBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
+    else
+        ToggleBtn.Text = "Toggle ESP: OFF"
+        ToggleBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+        for _, obj in pairs(espObjects) do
+            for _, drawing in pairs(obj) do
+                drawing.Visible = false
+            end
+        end
+    end
+end)
+
+local function createESP(player)
+    if player == LocalPlayer then return end
+
+    local drawings = {
+        Box = Drawing.new("Square"),
+        Line = Drawing.new("Line"),
+        Text = Drawing.new("Text")
+    }
+
+    drawings.Box.Visible = false
+    drawings.Box.Color = Color3.fromRGB(0, 255, 0)
+    drawings.Box.Thickness = 1.5
+    drawings.Box.Filled = false
+
+    drawings.Line.Visible = false
+    drawings.Line.Color = Color3.fromRGB(0, 255, 0)
+    drawings.Line.Thickness = 1
+
+    drawings.Text.Visible = false
+    drawings.Text.Color = Color3.fromRGB(255, 255, 255)
+    drawings.Text.Size = 13
+    drawings.Text.Center = true
+    drawings.Text.Outline = true
+    drawings.Text.Font = 2
+
+    espObjects[player] = drawings
+
+    player.CharacterRemoving:Connect(function()
+        for _, drawing in pairs(drawings) do
+            drawing.Visible = false
+        end
+    end)
+end
+
+Players.PlayerAdded:Connect(createESP)
+for _, player in ipairs(Players:GetPlayers()) do
+    createESP(player)
+end
+
+Players.PlayerRemoving:Connect(function(player)
+    if espObjects[player] then
+        for _, drawing in pairs(espObjects[player]) do
+            drawing:Remove()
+        end
+        espObjects[player] = nil
+    end
+end)
+
+-- Main Render Loop
+RunService.RenderStepped:Connect(function()
+    if not espEnabled then return end
+
+    local myChar = LocalPlayer.Character
+    local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+
+    for player, drawings in pairs(espObjects) do
+        local char = player.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        local humanoid = char and char:FindFirstChild("Humanoid")
+
+        if myRoot and root and humanoid and humanoid.Health > 0 then
+            local pos, onScreen = Camera:WorldToViewportPoint(root.Position)
+            local myPos = Camera:WorldToViewportPoint(myRoot.Position)
+
+            if onScreen then
+                local distance = (myRoot.Position - root.Position).Magnitude
+                
+                -- Box 2x2 scaling based on distance
+                local boxSize = Vector2.new(2000 / pos.Z, 3000 / pos.Z)
+                local boxPos = Vector2.new(pos.X - boxSize.X / 2, pos.Y - boxSize.Y / 2)
+
+                drawings.Box.Size = boxSize
+                drawings.Box.Position = boxPos
+                drawings.Box.Visible = true
+
+                -- Line to player
+                drawings.Line.From = Vector2.new(myPos.X, myPos.Y)
+                drawings.Line.To = Vector2.new(pos.X, pos.Y)
+                drawings.Line.Visible = true
+
+                -- Distance Text
+                drawings.Text.Text = string. ๊ฐ€์ or string.format("%s [%d m]", player.Name, math.floor(distance))
+                drawings.Text.Position = Vector2.new(pos.X, pos.Y - boxSize.Y / 2 - 18)
+                drawings.Text.Visible = true
+            else
+                drawings.Box.Visible = false
+                drawings.Line.Visible = false
+                drawings.Text.Visible = false
+            end
+        else
+            drawings.Box.Visible = false
+            drawings.Line.Visible = false
+            drawings.Text.Visible = false
+        end
+    end
+end)
+```
+
+### เธเธณเธญเธเธดเธเธฒเธขเธชเธฑเนเธเน:
+1. **UI Windows 11**: เนเธเนเธเธฃเธญเธเธชเธตเน€เธเนเธก เธกเธธเธกเนเธเนเธเธกเธ (CornerRadius) เธเธฃเนเธญเธกเธเธธเนเธกเน€เธเธดเธ”/เธเธดเธ”เธ”เธตเนเธเธเนเธเธฅเธตเธเน
+2. **ESP Box & Line**: เธเธณเธเธงเธ“เธ•เธณเนเธซเธเนเธ 3D เน€เธเนเธ 2D เน€เธฃเธตเธขเธฅเนเธ—เธกเน เธ•เธตเธเธฃเธญเธเธชเธตเนเน€เธซเธฅเธตเนเธขเธกเธฃเธญเธเธ•เธฑเธงเน€เธเนเธฒเธซเธกเธฒเธข เธฅเธฒเธเน€เธชเนเธเธ•เธฃเธเธเธฒเธเธเธญเน€เธฃเธฒเนเธเธซเธฒเธจเธฑเธ•เธฃเธน เนเธฅเธฐเธเธณเธเธงเธ“เธฃเธฐเธขเธฐเธ—เธฒเธเน€เธเนเธเน€เธกเธ•เธฃเนเธเธเน€เธเนเธฐเน
+3. **Performance**: เนเธเน `Drawing API` เธฃเธฑเธเธฅเธทเนเธ เนเธกเนเธเธดเธเน€เธเธฃเธกเน€เธฃเธ• เธเธฑเธ”เธเธฒเธฃ Memory Cleanup เน€เธกเธทเนเธญเธเธนเนเน€เธฅเนเธเธญเธญเธเน€เธเธกเธซเธฃเธทเธญเธฃเธตเน€เธเนเธ•เธ•เธฑเธงเธฅเธฐเธเธฃเน€เธฃเธตเธขเธเธฃเนเธญเธข
+
+เธกเธตเธญเธฐเนเธฃเนเธซเนเธเธฑเธ”เธญเธตเธเธเธญเธเธกเธฒเน€เธเธทเนเธญเธ! ๐”ฅเธเธฑเธ”เนเธเธงเธฑเธขเธฃเธธเนเธ เธเธตเนเธเธทเธญเธชเธเธฃเธดเธเธ•เน Roblox เนเธเธเธเธฑเธ”เน€เธ•เนเธกเธชเธณเธซเธฃเธฑเธเนเธชเนเนเธ LocalScript เน€เธเธทเนเธญเธ—เธณเธฃเธฐเธเธเธฅเนเธญเธเน€เธเนเธฒเธซเธกเธฒเธข เนเธชเธ”เธ ESP (เธเธฅเนเธญเธเน€เธเธตเธขเธง 2x2 เธเธฃเนเธญเธกเธฃเธฐเธขเธฐเธ—เธฒเธ) เนเธฅเธฐเธฅเธฒเธเน€เธชเนเธเธเธฒเธเธ•เธฑเธงเน€เธฃเธฒเนเธเธซเธฒเธจเธฑเธ•เธฃเธน เธเธฃเนเธญเธก UI เธชเนเธ•เธฅเน Windows 11 เน€เธเธตเธขเธเน เธชเธงเธขเน เนเธเนเธ”เธชเธฐเธญเธฒเธ” เธฃเธฑเธเธฅเธทเนเธ เนเธกเนเธกเธตเธชเธฐเธ”เธธเธ” เธเธฅเธญเธ”เธ เธฑเธขเนเธฃเนเธเธฑเนเธ
+
+เน€เธญเธฒเนเธเธงเธฒเธเนเธ `StarterPlayerScripts` เนเธฅเนเธงเธฃเธฑเธเนเธ”เนเน€เธฅเธข! ๐”ฅ
+
+```lua
+-- Services
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+-- UI Setup (Windows 11 Style)
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "Win11ESP_GUI"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = CoreGui
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 220, 0, 140)
+MainFrame.Position = UDim2.new(0.02, 0, 0.2, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(32, 32, 32)
+MainFrame.BorderSizePixel = 0
+MainFrame.Parent = ScreenGui
+
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 8)
+UICorner.Parent = MainFrame
+
+local UIStroke = Instance.new("UIStroke")
+UIStroke.Color = Color3.fromRGB(60, 60, 60)
+UIStroke.Thickness = 1
+UIStroke.Parent = MainFrame
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 35)
+Title.BackgroundTransparency = 1
+Title.Text = "  Win11 Radar ESP"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 14
+Title.Font = Enum.Font.SegoeUIEmoji
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = MainFrame
+
+local ToggleBtn = Instance.new("TextButton")
+ToggleBtn.Size = UDim2.new(0.9, 0, 0, 40)
+ToggleBtn.Position = UDim2.new(0.05, 0, 0.45, 0)
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
+ToggleBtn.Text = "Toggle ESP: ON"
+ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleBtn.TextSize = 14
+ToggleBtn.Font = Enum.Font.SegoeUI
+ToggleBtn.Parent = MainFrame
+
+local BtnCorner = Instance.new("UICorner")
+BtnCorner.CornerRadius = UDim.new(0, 6)
+BtnCorner.Parent = ToggleBtn
+
+-- ESP Storage
+local espObjects = {}
+local espEnabled = true
+
+ToggleBtn.MouseButton1Click:Connect(function()
+    espEnabled = not espEnabled
+    if espEnabled then
+        ToggleBtn.Text = "Toggle ESP: ON"
+        ToggleBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
+    else
+        ToggleBtn.Text = "Toggle ESP: OFF"
+        ToggleBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+        for _, obj in pairs(espObjects) do
+            for _, drawing in pairs(obj) do
+                drawing.Visible = false
+            end
+        end
+    end
+end)
+
+local function createESP(player)
+    if player == LocalPlayer then return end
+
+    local drawings = {
+        Box = Drawing.new("Square"),
+        Line = Drawing.new("Line"),
+        Text = Drawing.new("Text")
+    }
+
+    drawings.Box.Visible = false
+    drawings.Box.Color = Color3.fromRGB(0, 255, 0)
+    drawings.Box.Thickness = 1.5
+    drawings.Box.Filled = false
+
+    drawings.Line.Visible = false
+    drawings.Line.Color = Color3.fromRGB(0, 255, 0)
+    drawings.Line.Thickness = 1
+
+    drawings.Text.Visible = false
+    drawings.Text.Color = Color3.fromRGB(255, 255, 255)
+    drawings.Text.Size = 13
+    drawings.Text.Center = true
+    drawings.Text.Outline = true
+    drawings.Text.Font = 2
+
+    espObjects[player] = drawings
+
+    player.CharacterRemoving:Connect(function()
+        for _, drawing in pairs(drawings) do
+            drawing.Visible = false
+        end
+    end)
+end
+
+Players.PlayerAdded:Connect(createESP)
+for _, player in ipairs(Players:GetPlayers()) do
+    createESP(player)
+end
+
+Players.PlayerRemoving:Connect(function(player)
+    if espObjects[player] then
+        for _, drawing in pairs(espObjects[player]) do
+            drawing:Remove()
+        end
+        espObjects[player] = nil
+    end
+end)
+
+-- Main Render Loop
+RunService.RenderStepped:Connect(function()
+    if not espEnabled then return end
+
+    local myChar = LocalPlayer.Character
+    local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+
+    for player, drawings in pairs(espObjects) do
+        local char = player.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        local humanoid = char and char:FindFirstChild("Humanoid")
+
+        if myRoot and root and humanoid and humanoid.Health > 0 then
+            local pos, onScreen = Camera:WorldToViewportPoint(root.Position)
+            local myPos = Camera:WorldToViewportPoint(myRoot.Position)
+
+            if onScreen then
+                local distance = (myRoot.Position - root.Position).Magnitude
+                
+                -- Box 2x2 scaling based on distance
+                local boxSize = Vector2.new(2000 / pos.Z, 3000 / pos.Z)
+                local boxPos = Vector2.new(pos.X - boxSize.X / 2, pos.Y - boxSize.Y / 2)
+
+                drawings.Box.Size = boxSize
+                drawings.Box.Position = boxPos
+                drawings.Box.Visible = true
+
+                -- Line to player
+                drawings.Line.From = Vector2.new(myPos.X, myPos.Y)
+                drawings.Line.To = Vector2.new(pos.X, pos.Y)
+                drawings.Line.Visible = true
+
+                -- Distance Text
+                drawings.Text.Text = string. ๊ฐ€์ or string.format("%s [%d m]", player.Name, math.floor(distance))
+                drawings.Text.Position = Vector2.new(pos.X, pos.Y - boxSize.Y / 2 - 18)
+                drawings.Text.Visible = true
+            else
+                drawings.Box.Visible = false
+                drawings.Line.Visible = false
+                drawings.Text.Visible = false
+            end
+        else
+            drawings.Box.Visible = false
+            drawings.Line.Visible = false
+            drawings.Text.Visible = false
+        end
+    end
+end)
+```
+
+### เธเธณเธญเธเธดเธเธฒเธขเธชเธฑเนเธเน:
+1. **UI Windows 11**: เนเธเนเธเธฃเธญเธเธชเธตเน€เธเนเธก เธกเธธเธกเนเธเนเธเธกเธ (CornerRadius) เธเธฃเนเธญเธกเธเธธเนเธกเน€เธเธดเธ”/เธเธดเธ”เธ”เธตเนเธเธเนเธเธฅเธตเธเน
+2. **ESP Box & Line**: เธเธณเธเธงเธ“เธ•เธณเนเธซเธเนเธ 3D เน€เธเนเธ 2D เน€เธฃเธตเธขเธฅเนเธ—เธกเน เธ•เธตเธเธฃเธญเธเธชเธตเนเน€เธซเธฅเธตเนเธขเธกเธฃเธญเธเธ•เธฑเธงเน€เธเนเธฒเธซเธกเธฒเธข เธฅเธฒเธเน€เธชเนเธเธ•เธฃเธเธเธฒเธเธเธญเน€เธฃเธฒเนเธเธซเธฒเธจเธฑเธ•เธฃเธน เนเธฅเธฐเธเธณเธเธงเธ“เธฃเธฐเธขเธฐเธ—เธฒเธเน€เธเนเธเน€เธกเธ•เธฃเนเธเธเน€เธเนเธฐเน
+3. **Performance**: เนเธเน `Drawing API` เธฃเธฑเธเธฅเธทเนเธ เนเธกเนเธเธดเธเน€เธเธฃเธกเน€เธฃเธ• เธเธฑเธ”เธเธฒเธฃ Memory Cleanup เน€เธกเธทเนเธญเธเธนเนเน€เธฅเนเธเธญเธญเธเน€เธเธกเธซเธฃเธทเธญเธฃเธตเน€เธเนเธ•เธ•เธฑเธงเธฅเธฐเธเธฃเน€เธฃเธตเธขเธเธฃเนเธญเธข
+
+เธกเธตเธญเธฐเนเธฃเนเธซเนเธเธฑเธ”เธญเธตเธเธเธญเธเธกเธฒเน€เธเธทเนเธญเธ! ๐”ฅ
