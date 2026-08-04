@@ -1,0 +1,50 @@
+-- สคริปต์สำหรับผู้พัฒนา: แสดง ESP สีเขียวนีออนทะลุกำแพงให้ทุกคนในเซิร์ฟเวอร์
+local Players = game:GetService("Players")
+
+-- ฟังก์ชันสำหรับสร้างและปรับแต่ง Highlight สีเขียวนีออน
+local function createNeonESP(character)
+	-- ตรวจสอบว่ามี Highlight อยู่แล้วหรือไม่
+	local highlight = character:FindFirstChild("ServerESP")
+	if not highlight then
+		highlight = Instance.new("Highlight")
+		highlight.Name = "ServerESP"
+		highlight.Parent = character
+	end
+
+	-- ตั้งค่าสีเขียวนีออนและความสดของแสง
+	highlight.FillColor = Color3.fromRGB(0, 255, 100)       -- สีเขียวนีออน (Neon Green)
+	highlight.OutlineColor = Color3.fromRGB(255, 255, 255)  -- สีขอบตัดด้วยสีขาวเน้นความคมชัด
+	
+	-- ตั้งค่าระดับความโปร่งแสง
+	highlight.FillTransparency = 0.2                          -- ความเข้มของเนื้อสี (0 = ทึบ, 1 = ใส)
+	highlight.OutlineTransparency = 0                         -- ความเข้มของเส้นขอบ
+
+	-- **จุดสำคัญ:** ตั้งค่าให้แสดงผลทะลุสิ่งกีดขวาง/กำแพง
+	highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+end
+
+-- ฟังก์ชันจัดการเมื่อตัวละครของผู้เล่นโหลดขึ้นมา
+local function onCharacterAdded(character)
+	-- รอให้ชิ้นส่วนตัวละครโหลดครบก่อนใส่ Highlight
+	character:WaitForChild("HumanoidRootPart", 5)
+	createNeonESP(character)
+end
+
+-- ฟังก์ชันจัดการเมื่อมีผู้เล่นใหม่เชื่อมต่อเข้ามา
+local function onPlayerAdded(player)
+	-- ติดตามเมื่อผู้เล่นเกิดใหม่ (Spawn / Respawn)
+	player.CharacterAdded:Connect(onCharacterAdded)
+	
+	-- กรณีที่ตัวละครโหลดมารออยู่แล้ว
+	if player.Character then
+		onCharacterAdded(player.Character)
+	end
+end
+
+-- เรียกใช้งานกับผู้เล่นทุกคนในเซิร์ฟเวอร์
+Players.PlayerAdded:Connect(onPlayerAdded)
+
+-- เผื่อกรณีที่มีผู้เล่นอยู่ในเกมอยู่แล้วขณะที่สคริปต์เริ่มทำงาน
+for _, player in ipairs(Players:GetPlayers()) do
+	onPlayerAdded(player)
+end
