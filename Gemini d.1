@@ -1,0 +1,316 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local localPlayer = Players.LocalPlayer
+local playerGui = localPlayer:WaitForChild("PlayerGui")
+local camera = workspace.CurrentCamera
+
+-- สถานะระบบ
+local espEnabled = true
+local camLockEnabled = true -- เปิด/ปิด ระบบล็อกกล้อง
+local isMinimized = false
+local visuals = {}
+
+----------------------------------------------------
+-- 1. สร้างหน้าจอ UI
+----------------------------------------------------
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "ESP_Control_UI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = playerGui
+
+-- กรอบหลัก (Main Frame)
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 200, 0, 160) -- ขยายขนาดเพื่อรองรับปุ่ม CamLock
+mainFrame.Position = UDim2.new(0.05, 0, 0.2, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Parent = screenGui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 8)
+corner.Parent = mainFrame
+
+-- แถบหัวข้อ (Title Bar)
+local titleBar = Instance.new("Frame")
+titleBar.Name = "TitleBar"
+titleBar.Size = UDim2.new(1, 0, 0, 30)
+titleBar.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+titleBar.BorderSizePixel = 0
+titleBar.Parent = mainFrame
+
+local titleCorner = Instance.new("UICorner")
+titleCorner.CornerRadius = UDim.new(0, 8)
+titleCorner.Parent = titleBar
+
+local titleText = Instance.new("TextLabel")
+titleText.Size = UDim2.new(1, -40, 1, 0)
+titleText.Position = UDim2.new(0, 10, 0, 0)
+titleText.BackgroundTransparency = 1
+titleText.Text = "Control Panel"
+titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleText.TextXAlignment = Enum.TextXAlignment.Left
+titleText.Font = Enum.Font.SourceSansBold
+titleText.TextSize = 16
+titleText.Parent = titleBar
+
+-- ปุ่มย่อหน้าต่าง (Minimize Button)
+local minBtn = Instance.new("TextButton")
+minBtn.Name = "MinButton"
+minBtn.Size = UDim2.new(0, 25, 0, 25)
+minBtn.Position = UDim2.new(1, -28, 0, 2.5)
+minBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 65)
+minBtn.Text = "-"
+minBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+minBtn.Font = Enum.Font.SourceSansBold
+minBtn.TextSize = 18
+minBtn.Parent = titleBar
+
+local minCorner = Instance.new("UICorner")
+minCorner.CornerRadius = UDim.new(0, 4)
+minCorner.Parent = minBtn
+
+-- ปุ่ม เปิด/ปิด ESP
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Name = "ToggleButton"
+toggleBtn.Size = UDim2.new(1, -20, 0, 40)
+toggleBtn.Position = UDim2.new(0, 10, 0, 45)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(46, 125, 50) -- เขียว
+toggleBtn.Text = "ESP: ON"
+toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleBtn.Font = Enum.Font.SourceSansBold
+toggleBtn.TextSize = 16
+toggleBtn.Parent = mainFrame
+
+local btnCorner = Instance.new("UICorner")
+btnCorner.CornerRadius = UDim.new(0, 6)
+btnCorner.Parent = toggleBtn
+
+-- ปุ่ม เปิด/ปิด CamLock
+local lockBtn = Instance.new("TextButton")
+lockBtn.Name = "LockButton"
+lockBtn.Size = UDim2.new(1, -20, 0, 40)
+lockBtn.Position = UDim2.new(0, 10, 0, 95)
+lockBtn.BackgroundColor3 = Color3.fromRGB(46, 125, 50) -- เขียว
+lockBtn.Text = "CamLock: ON"
+lockBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+lockBtn.Font = Enum.Font.SourceSansBold
+lockBtn.TextSize = 16
+lockBtn.Parent = mainFrame
+
+local lockCorner = Instance.new("UICorner")
+lockCorner.CornerRadius = UDim.new(0, 6)
+lockCorner.Parent = lockBtn
+
+----------------------------------------------------
+-- 2. ระบบ Drag ย้ายตำแหน่ง UI
+----------------------------------------------------
+local dragging, dragInput, dragStart, startPos
+
+titleBar.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		dragging = true
+		dragStart = input.Position
+		startPos = mainFrame.Position
+
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				dragging = false
+			end
+		end)
+	end
+end)
+
+titleBar.InputChanged:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+		dragInput = input
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if input == dragInput and dragging then
+		local delta = input.Position - dragStart
+		mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+	end
+end)
+
+----------------------------------------------------
+-- 3. ระบบย่อ/ขยาย UI และปุ่มสวิตช์
+----------------------------------------------------
+minBtn.MouseButton1Click:Connect(function()
+	isMinimized = not isMinimized
+	if isMinimized then
+		mainFrame.Size = UDim2.new(0, 200, 0, 30)
+		toggleBtn.Visible = false
+		lockBtn.Visible = false
+		minBtn.Text = "+"
+	else
+		mainFrame.Size = UDim2.new(0, 200, 0, 160)
+		toggleBtn.Visible = true
+		lockBtn.Visible = true
+		minBtn.Text = "-"
+	end
+end)
+
+toggleBtn.MouseButton1Click:Connect(function()
+	espEnabled = not espEnabled
+	if espEnabled then
+		toggleBtn.Text = "ESP: ON"
+		toggleBtn.BackgroundColor3 = Color3.fromRGB(46, 125, 50)
+	else
+		toggleBtn.Text = "ESP: OFF"
+		toggleBtn.BackgroundColor3 = Color3.fromRGB(198, 40, 40)
+	end
+end)
+
+lockBtn.MouseButton1Click:Connect(function()
+	camLockEnabled = not camLockEnabled
+	if camLockEnabled then
+		lockBtn.Text = "CamLock: ON"
+		lockBtn.BackgroundColor3 = Color3.fromRGB(46, 125, 50)
+	else
+		lockBtn.Text = "CamLock: OFF"
+		lockBtn.BackgroundColor3 = Color3.fromRGB(198, 40, 40)
+	end
+end)
+
+----------------------------------------------------
+-- 4. ระบบ ESP (Tracer Line + Box)
+----------------------------------------------------
+local function createVisuals(targetPlayer)
+	if targetPlayer == localPlayer then return end
+
+	local data = {}
+
+	-- เส้น Tracer
+	local line = Instance.new("LineHandleAdornment")
+	line.Name = "Tracer_" .. targetPlayer.Name
+	line.Color3 = Color3.fromRGB(0, 255, 0)
+	line.Thickness = 2
+	line.AlwaysOnTop = true
+	line.ZIndex = 10
+	line.Parent = workspace
+	data.Line = line
+
+	-- กล่อง Box
+	local box = Instance.new("SelectionBox")
+	box.Name = "Box_" .. targetPlayer.Name
+	box.Color3 = Color3.fromRGB(0, 255, 0)
+	box.LineThickness = 0.05
+	box.Parent = workspace
+	data.Box = box
+
+	visuals[targetPlayer] = data
+end
+
+local function removeVisuals(targetPlayer)
+	if visuals[targetPlayer] then
+		if visuals[targetPlayer].Line then visuals[targetPlayer].Line:Destroy() end
+		if visuals[targetPlayer].Box then visuals[targetPlayer].Box:Destroy() end
+		visuals[targetPlayer] = nil
+	end
+end
+
+for _, player in ipairs(Players:GetPlayers()) do
+	createVisuals(player)
+end
+
+Players.PlayerAdded:Connect(createVisuals)
+Players.PlayerRemoving:Connect(removeVisuals)
+
+----------------------------------------------------
+-- 5. ฟังก์ชันตรวจสอบสิ่งกีดขวาง (Visible Check) & ค้นหาผู้เล่นใกล้ที่สุด
+----------------------------------------------------
+local function isVisible(myChar, targetChar, targetHRP)
+	local raycastParams = RaycastParams.new()
+	raycastParams.FilterType = RaycastParamsFilterType.Exclude
+	-- ละเว้นโมเดลของผู้เล่นเอง และโมเดลของเป้าหมาย เพื่อเช็คเฉพาะสิ่งกีดขวาง/กำแพง
+	raycastParams.FilterDescendantsInstances = {myChar, targetChar}
+	raycastParams.IgnoreWater = true
+
+	local origin = camera.CFrame.Position
+	local direction = targetHRP.Position - origin
+
+	local result = workspace:Raycast(origin, direction, raycastParams)
+	-- ถ้า Raycast ไม่ชนอะไรเลย แสดงว่าไม่มีกำแพงบัง
+	return result == nil
+end
+
+local function getClosestVisiblePlayer()
+	local myChar = localPlayer.Character
+	local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
+	local myHumanoid = myChar and myChar:FindFirstChild("Humanoid")
+
+	if not myHRP or not myHumanoid or myHumanoid.Health <= 0 then 
+		return nil 
+	end
+
+	local closestPlayer = nil
+	local shortestDistance = math.huge
+
+	for _, targetPlayer in ipairs(Players:GetPlayers()) do
+		if targetPlayer ~= localPlayer then
+			local targetChar = targetPlayer.Character
+			local targetHRP = targetChar and targetChar:FindFirstChild("HumanoidRootPart")
+			local targetHumanoid = targetChar and targetChar:FindFirstChild("Humanoid")
+
+			-- เช็คสถานะมีชีวิต
+			if targetHRP and targetHumanoid and targetHumanoid.Health > 0 then
+				local distance = (targetHRP.Position - myHRP.Position).Magnitude
+
+				-- เช็คระยะห่าง + ตรวจสอบว่ามองเห็นได้ (ไม่มีกำแพงบัง)
+				if distance < shortestDistance then
+					if isVisible(myChar, targetChar, targetHRP) then
+						shortestDistance = distance
+						closestPlayer = targetPlayer
+					end
+				end
+			end
+		end
+	end
+
+	return closestPlayer
+end
+
+----------------------------------------------------
+-- 6. Main Loop (RenderStepped)
+----------------------------------------------------
+RunService.RenderStepped:Connect(function()
+	local myChar = localPlayer.Character
+	local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
+
+	-- อัปเดต ESP โยงเส้นและกล่อง
+	for targetPlayer, data in pairs(visuals) do
+		local targetChar = targetPlayer.Character
+		local targetHRP = targetChar and targetChar:FindFirstChild("HumanoidRootPart")
+		local targetHumanoid = targetChar and targetChar:FindFirstChild("Humanoid")
+
+		if espEnabled and myHRP and targetHRP and targetHumanoid and targetHumanoid.Health > 0 then
+			data.Line.Visible = true
+			data.Line.Adornee = myHRP
+			data.Line.Length = (targetHRP.Position - myHRP.Position).Magnitude
+			data.Line.CFrame = CFrame.lookAt(myHRP.Position, targetHRP.Position)
+
+			data.Box.Adornee = targetChar
+			data.Box.Visible = true
+		else
+			data.Line.Visible = false
+			data.Box.Visible = false
+		end
+	end
+
+	-- อัปเดตระบบ CamLock
+	if camLockEnabled then
+		local closestPlayer = getClosestVisiblePlayer()
+		if closestPlayer and closestPlayer.Character then
+			local targetHead = closestPlayer.Character:FindFirstChild("Head") or closestPlayer.Character:FindFirstChild("HumanoidRootPart")
+			if targetHead then
+				-- หันมุมกล้องไปที่เป้าหมาย
+				camera.CFrame = CFrame.lookAt(camera.CFrame.Position, targetHead.Position)
+			end
+		end
+	end
+end)
