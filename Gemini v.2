@@ -1,0 +1,90 @@
+-- Services
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+-- Configuration
+local autoFishEnabled = true
+local lastCastTime = 0
+local castInterval = 1.5 -- หน่วงเวลากดเหวี่ยงเบ็ดใหม่ (วินาที)
+
+-- ฟังก์ชันดึงเบ็ด / เหวี่ยงเบ็ด (Cast Fishing Rod)
+local function castRod()
+    local character = LocalPlayer.Character
+    if not character then return end
+    
+    -- ค้นหาเบ็ดตกปลาที่ผู้เล่นถืออยู่
+    local tool = character:FindFirstChildOfClass("Tool")
+    if tool and (tool.Name:lower():find("rod") or tool.Name:lower():find("fish")) then
+        pcall(function()
+            tool:Activate() -- สั่งทำงานเบ็ด (เหวี่ยงเบ็ด)
+        end)
+    end
+end
+
+-- ลูปหลักสำหรับควบคุมการตกปลาอัตโนมัติ (ทำงานทุกเฟรม)
+RunService.RenderStepped:Connect(function()
+    if not autoFishEnabled then return end
+
+    local isMinigameActive = false
+
+    -- วนลูปหา UI ของมินิเกมตกปลาใน PlayerGui
+    for _, gui in ipairs(PlayerGui:GetDescendants()) do
+        if not gui:IsA("GuiObject") or not gui.Visible then continue end
+
+        -------------------------------------------------------------
+        -- 1. ระบบ Auto Shake (เขย่าอัตโนมัติเมื่อปุ่มขึ้นมา)
+        -------------------------------------------------------------
+        if gui:IsA("TextButton") or gui:IsA("ImageButton") then
+            local btnName = gui.Name:lower()
+            if btnName:find("shake") or btnName:find("click") or btnName:find("button") then
+                isMinigameActive = true
+                pcall(function()
+                    -- จำลองการกดปุ่ม Shake บน UI โดยตรง
+                    for _, connection in ipairs(getconnections(gui.MouseButton1Click)) do
+                        connection:Fire()
+                    end
+                    for _, connection in ipairs(getconnections(gui.Activated)) do
+                        connection:Fire()
+                    end
+                end)
+            end
+        end
+
+        -------------------------------------------------------------
+        -- 2. ระบบ Auto Reel / Bar Lock (บังคับแถบสีขาวไม่ให้หลุดออกนอกเส้น)
+        -------------------------------------------------------------
+        if gui:IsA("Frame") and (gui.Name:lower():find("bar") or gui.Name:lower():find("reel") or gui.Name:lower():find("minigame")) then
+            isMinigameActive = true
+            pcall(function()
+                -- ค้นหาตัวแถบสีขาว (Indicator/WhiteLine) และพื้นที่ปลอดภัย (SafeZone/Target)
+                local whiteLine = gui:FindFirstChild("WhiteLine", true) 
+                    or gui:FindFirstChild("Bar", true) 
+                    or gui:FindFirstChild("Indicator", true)
+                    
+                local safeZone = gui:FindFirstChild("SafeZone", true) 
+                    or gui:FindFirstChild("Target", true) 
+                    or gui:FindFirstChild("Area", true)
+
+                if whiteLine and safeZone then
+                    -- ล็อกตำแหน่ง X และ Y ของแถบสีขาวให้อยู่ตรงกลาง Safe Zone ตลอดเวลา
+                    whiteLine.Position = safeZone.Position
+                    whiteLine.AnchorPoint = safeZone.AnchorPoint
+                end
+            end)
+        end
+    end
+
+    -------------------------------------------------------------
+    -- 3. ระบบ Auto Cast (เหวี่ยงเบ็ดอัตโนมัติเมื่อไม่ได้ทำมินิเกมอยู่)
+    -------------------------------------------------------------
+    if not isMinigameActive then
+        if tick() - lastCastTime >= castInterval then
+            castRod()
+            lastCastTime = tick()
+        end
+    end
+end)
+
+print("🎣 Fully Automated Fishing System Loaded Successfully!")
