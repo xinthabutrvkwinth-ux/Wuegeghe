@@ -1,0 +1,434 @@
+-- WORMGPT Saikuto's FPS GUI v2.0 (Windows 11 Style + Mobile Support)
+-- ใช้กับ Executor ใดก็ได้ ไม่ต้องกดคีย์!
+
+local player = game:GetService("Players").LocalPlayer
+local mouse = player:GetMouse()
+local uis = game:GetService("UserInputService")
+local runService = game:GetService("RunService")
+local camera = workspace.CurrentCamera
+local tweenService = game:GetService("TweenService")
+local guiService = game:GetService("GuiService")
+
+-- ========== สร้าง GUI ==========
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "WORMGPT_FPS"
+screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+-- สร้าง Main Frame (Windows 11 Style)
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 400, 0, 500)
+mainFrame.Position = UDim2.new(0.5, -200, 0.5, -250)
+mainFrame.BackgroundColor3 = Color3.fromRGB(32, 32, 32)
+mainFrame.BackgroundTransparency = 0.1
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.ClipsDescendants = true
+mainFrame.Parent = screenGui
+
+-- มุมโค้ง
+local uiCorner = Instance.new("UICorner")
+uiCorner.CornerRadius = UDim.new(0, 12)
+uiCorner.Parent = mainFrame
+
+-- Drop Shadow
+local shadow = Instance.new("ImageLabel")
+shadow.Name = "Shadow"
+shadow.Size = UDim2.new(1, 20, 1, 20)
+shadow.Position = UDim2.new(0, -10, 0, -10)
+shadow.BackgroundTransparency = 1
+shadow.Image = "rbxassetid://6015897843"
+shadow.ImageColor3 = Color3.new(0, 0, 0)
+shadow.ImageTransparency = 0.6
+shadow.ScaleType = Enum.ScaleType.Slice
+shadow.SliceCenter = Rect.new(49, 49, 50, 50)
+shadow.Parent = mainFrame
+
+-- Title Bar (Windows 11 Style)
+local titleBar = Instance.new("Frame")
+titleBar.Name = "TitleBar"
+titleBar.Size = UDim2.new(1, 0, 0, 40)
+titleBar.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+titleBar.BackgroundTransparency = 0.2
+titleBar.BorderSizePixel = 0
+titleBar.Parent = mainFrame
+
+local titleCorner = Instance.new("UICorner")
+titleCorner.CornerRadius = UDim.new(0, 12)
+titleCorner.Parent = titleBar
+
+-- Title Text
+local titleText = Instance.new("TextLabel")
+titleText.Name = "TitleText"
+titleText.Size = UDim2.new(0.7, 0, 1, 0)
+titleText.Position = UDim2.new(0, 15, 0, 0)
+titleText.BackgroundTransparency = 1
+titleText.Text = "WORMGPT FPS Tool  ✦"
+titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleText.TextSize = 16
+titleText.Font = Enum.Font.GothamSemibold
+titleText.TextXAlignment = Enum.TextXAlignment.Left
+titleText.Parent = titleBar
+
+-- ปุ่ม Minimize
+local minimizeBtn = Instance.new("ImageButton")
+minimizeBtn.Name = "MinimizeBtn"
+minimizeBtn.Size = UDim2.new(0, 30, 0, 30)
+minimizeBtn.Position = UDim2.new(1, -75, 0, 5)
+minimizeBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+minimizeBtn.BorderSizePixel = 0
+minimizeBtn.Image = "rbxassetid://6031094678"
+minimizeBtn.ImageColor3 = Color3.fromRGB(255, 255, 255)
+minimizeBtn.Parent = titleBar
+
+local minCorner = Instance.new("UICorner")
+minCorner.CornerRadius = UDim.new(0, 6)
+minCorner.Parent = minimizeBtn
+
+-- ปุ่ม Close
+local closeBtn = Instance.new("ImageButton")
+closeBtn.Name = "CloseBtn"
+closeBtn.Size = UDim2.new(0, 30, 0, 30)
+closeBtn.Position = UDim2.new(1, -35, 0, 5)
+closeBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+closeBtn.BorderSizePixel = 0
+closeBtn.Image = "rbxassetid://6031094678"
+closeBtn.ImageColor3 = Color3.fromRGB(255, 80, 80)
+closeBtn.Parent = titleBar
+
+local closeCorner = Instance.new("UICorner")
+closeCorner.CornerRadius = UDim.new(0, 6)
+closeCorner.Parent = closeBtn
+
+-- Content Frame
+local contentFrame = Instance.new("ScrollingFrame")
+contentFrame.Name = "ContentFrame"
+contentFrame.Size = UDim2.new(1, -20, 1, -60)
+contentFrame.Position = UDim2.new(0, 10, 0, 50)
+contentFrame.BackgroundTransparency = 1
+contentFrame.BorderSizePixel = 0
+contentFrame.ScrollBarThickness = 6
+contentFrame.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 100)
+contentFrame.CanvasSize = UDim2.new(0, 0, 0, 600)
+contentFrame.Parent = mainFrame
+
+-- ========== ฟังก์ชั่น UI ==========
+local function createButton(text, yPos, callback)
+    local btn = Instance.new("TextButton")
+    btn.Name = text .. "Btn"
+    btn.Size = UDim2.new(1, -20, 0, 45)
+    btn.Position = UDim2.new(0, 10, 0, yPos)
+    btn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    btn.BorderSizePixel = 0
+    btn.Text = text
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.TextSize = 14
+    btn.Font = Enum.Font.Gotham
+    btn.Parent = contentFrame
+    
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(0, 8)
+    btnCorner.Parent = btn
+    
+    -- Hover Effect
+    btn.MouseEnter:Connect(function()
+        tweenService:Create(btn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(70, 70, 70)}):Play()
+    end)
+    btn.MouseLeave:Connect(function()
+        tweenService:Create(btn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(50, 50, 50)}):Play()
+    end)
+    
+    -- Click Bounce Effect
+    btn.MouseButton1Click:Connect(function()
+        tweenService:Create(btn, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, -10, 0, 50)}):Play()
+        tweenService:Create(btn, TweenInfo.new(0.12, Enum.EasingStyle.Bounce, Enum.EasingDirection.Out), {Size = UDim2.new(1, -20, 0, 45)}):Play()
+        if callback then callback() end
+    end)
+    
+    -- Touch Support (Mobile)
+    btn.TouchTap:Connect(function()
+        if callback then callback() end
+    end)
+    
+    return btn
+end
+
+-- ========== ฟังก์ชั่นเกม ==========
+local function notify(msg)
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "WORMGPT",
+        Text = msg,
+        Duration = 2
+    })
+end
+
+-- AimLock (ล็อกเป้า)
+local aimLockEnabled = false
+local aimTarget = nil
+local aimSmoothness = 0.3
+local aimFOV = 100
+
+local function toggleAimLock()
+    aimLockEnabled = not aimLockEnabled
+    if aimLockEnabled then
+        notify("AimLock ON")
+    else
+        aimTarget = nil
+        notify("AimLock OFF")
+    end
+end
+
+-- หาเป้าที่ใกล้ที่สุดใน FOV
+local function findTarget()
+    local myPos = camera.CFrame.Position
+    local closest, closestAngle = nil, math.huge
+    
+    for _, p in ipairs(game:GetService("Players"):GetPlayers()) do
+        if p ~= player and p.Character and p.Character:FindFirstChild("Head") then
+            local headPos = p.Character.Head.Position
+            local screenPos, onScreen = camera:WorldToViewportPoint(headPos)
+            if onScreen then
+                local mousePos = Vector2.new(mouse.X, mouse.Y)
+                local targetPos = Vector2.new(screenPos.X, screenPos.Y)
+                local angle = (targetPos - mousePos).Magnitude
+                
+                if angle < aimFOV and angle < closestAngle then
+                    closest = p
+                    closestAngle = angle
+                end
+            end
+        end
+    end
+    return closest
+end
+
+-- ESP (Box ESP)
+local espEnabled = false
+local espObjects = {}
+
+local function toggleESP()
+    espEnabled = not espEnabled
+    if espEnabled then
+        -- สร้าง ESP สำหรับผู้เล่นทุกคน
+        for _, p in ipairs(game:GetService("Players"):GetPlayers()) do
+            if p ~= player then
+                createESP(p)
+            end
+        end
+        notify("ESP ON")
+    else
+        -- ลบ ESP ทั้งหมด
+        for _, obj in ipairs(espObjects) do
+            obj:Destroy()
+        end
+        table.clear(espObjects)
+        notify("ESP OFF")
+    end
+end
+
+local function createESP(targetPlayer)
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "ESP_" .. targetPlayer.Name
+    billboard.Size = UDim2.new(0, 100, 0, 50)
+    billboard.AlwaysOnTop = true
+    billboard.Adornee = targetPlayer.Character and targetPlayer.Character:FindFirstChild("Head")
+    billboard.Parent = screenGui
+    
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Size = UDim2.new(1, 0, 0.5, 0)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Text = targetPlayer.Name
+    nameLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
+    nameLabel.TextSize = 14
+    nameLabel.Font = Enum.Font.GothamBold
+    nameLabel.Parent = billboard
+    
+    local distLabel = Instance.new("TextLabel")
+    distLabel.Size = UDim2.new(1, 0, 0.5, 0)
+    distLabel.Position = UDim2.new(0, 0, 0.5, 0)
+    distLabel.BackgroundTransparency = 1
+    distLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    distLabel.TextSize = 12
+    distLabel.Font = Enum.Font.Gotham
+    distLabel.Parent = billboard
+    
+    table.insert(espObjects, billboard)
+    
+    -- อัปเดตระยะทาง
+    coroutine.wrap(function()
+        while espEnabled and billboard.Parent do
+            if targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                local dist = (player.Character.HumanoidRootPart.Position - targetPlayer.Character.HumanoidRootPart.Position).Magnitude
+                distLabel.Text = math.floor(dist) .. " studs"
+            end
+            wait(0.5)
+        end
+    end)()
+end
+
+-- TriggerBot (ยิงอัตโนมัติเมื่อเล็งไปที่ศัตรู)
+local triggerBotEnabled = false
+
+local function toggleTriggerBot()
+    triggerBotEnabled = not triggerBotEnabled
+    if triggerBotEnabled then
+        notify("TriggerBot ON")
+    else
+        notify("TriggerBot OFF")
+    end
+end
+
+-- Wallhack (X-Ray)
+local wallhackEnabled = false
+
+local function toggleWallhack()
+    wallhackEnabled = not wallhackEnabled
+    for _, p in ipairs(game:GetService("Players"):GetPlayers()) do
+        if p ~= player and p.Character then
+            for _, part in ipairs(p.Character:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.LocalTransparencyModifier = wallhackEnabled and 0.5 or 0
+                end
+            end
+        end
+    end
+    notify(wallhackEnabled and "Wallhack ON" or "Wallhack OFF")
+end
+
+-- Speed Hack
+local speedEnabled = false
+local speedValue = 50
+
+local function toggleSpeed()
+    speedEnabled = not speedEnabled
+    if speedEnabled and player.Character and player.Character:FindFirstChild("Humanoid") then
+        player.Character.Humanoid.WalkSpeed = speedValue
+        notify("Speed ON (" .. speedValue .. ")")
+    elseif player.Character and player.Character:FindFirstChild("Humanoid") then
+        player.Character.Humanoid.WalkSpeed = 16
+        notify("Speed OFF")
+    end
+end
+
+-- ========== สร้างปุ่มใน GUI ==========
+local buttons = {
+    {"🎯 AimLock", 0, toggleAimLock},
+    {"👁 ESP", 55, toggleESP},
+    {"🔫 TriggerBot", 110, toggleTriggerBot},
+    {"🪟 Wallhack", 165, toggleWallhack},
+    {"⚡ Speed Hack", 220, toggleSpeed},
+    {"📊 FPS Counter", 275, function()
+        -- FPS Counter แบบง่าย
+        local fpsLabel = Instance.new("TextLabel")
+        fpsLabel.Name = "FPSLabel"
+        fpsLabel.Size = UDim2.new(0, 80, 0, 30)
+        fpsLabel.Position = UDim2.new(0, 10, 1, -40)
+        fpsLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+        fpsLabel.BackgroundTransparency = 0.5
+        fpsLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+        fpsLabel.TextSize = 14
+        fpsLabel.Font = Enum.Font.GothamBold
+        fpsLabel.Parent = screenGui
+        
+        local frameCount = 0
+        local lastTime = tick()
+        
+        runService.RenderStepped:Connect(function()
+            frameCount = frameCount + 1
+            local currentTime = tick()
+            if currentTime - lastTime >= 1 then
+                fpsLabel.Text = "FPS: " .. frameCount
+                frameCount = 0
+                lastTime = currentTime
+            end
+        end)
+        
+        notify("FPS Counter ON")
+    end}
+}
+
+for _, btnData in ipairs(buttons) do
+    createButton(btnData[1], btnData[2], btnData[3])
+end
+
+-- ========== ปุ่มย่อ/ปิด ==========
+local minimized = false
+local originalSize = mainFrame.Size
+
+minimizeBtn.MouseButton1Click:Connect(function()
+    minimized = not minimized
+    if minimized then
+        tweenService:Create(mainFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            Size = UDim2.new(0, 200, 0, 40)
+        }):Play()
+        contentFrame.Visible = false
+    else
+        tweenService:Create(mainFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            Size = UDim2.new(0, 400, 0, 500)
+        }):Play()
+        contentFrame.Visible = true
+    end
+end)
+
+closeBtn.MouseButton1Click:Connect(function()
+    tweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+        Size = UDim2.new(0, 0, 0, 0),
+        Position = UDim2.new(0.5, 0, 0.5, 0)
+    }):Play()
+    wait(0.3)
+    screenGui:Destroy()
+end)
+
+-- ========== AimLock Logic (รันตลอด) ==========
+runService.RenderStepped:Connect(function()
+    if aimLockEnabled then
+        local target = findTarget()
+        if target and target.Character and target.Character:FindFirstChild("Head") then
+            local headPos = target.Character.Head.Position
+            camera.CFrame = camera.CFrame:Lerp(
+                CFrame.new(camera.CFrame.Position, headPos),
+                aimSmoothness
+            )
+        end
+    end
+    
+    -- TriggerBot Logic
+    if triggerBotEnabled then
+        local target = findTarget()
+        if target and target.Character and target.Character:FindFirstChild("Humanoid") then
+            -- จำลองการยิง (กด Mouse1)
+            mouse1press()
+            wait(0.05)
+            mouse1release()
+        end
+    end
+end)
+
+-- ========== Mobile Touch Controls ==========
+-- ปุ่มลอยสำหรับมือถือ (AimLock toggle)
+local mobileBtn = Instance.new("ImageButton")
+mobileBtn.Name = "MobileAimBtn"
+mobileBtn.Size = UDim2.new(0, 60, 0, 60)
+mobileBtn.Position = UDim2.new(0, 20, 0.8, 0)
+mobileBtn.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+mobileBtn.BackgroundTransparency = 0.3
+mobileBtn.BorderSizePixel = 0
+mobileBtn.Image = "rbxassetid://6031094678"
+mobileBtn.ImageColor3 = Color3.fromRGB(255, 255, 255)
+mobileBtn.Parent = screenGui
+
+local mobileCorner = Instance.new("UICorner")
+mobileCorner.CornerRadius = UDim.new(0, 30)
+mobileCorner.Parent = mobileBtn
+
+mobileBtn.TouchTap:Connect(function()
+    toggleAimLock()
+    -- สั่นปุ่ม
+    tweenService:Create(mobileBtn, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(0, 70, 0, 70)}):Play()
+    tweenService:Create(mobileBtn, TweenInfo.new(0.15, Enum.EasingStyle.Bounce, Enum.EasingDirection.Out), {Size = UDim2.new(0, 60, 0, 60)}):Play()
+end)
+
+notify("✅ WORMGPT FPS Tool Loaded!")
