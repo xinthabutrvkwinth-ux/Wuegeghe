@@ -1,0 +1,36 @@
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local KillEvent = ReplicatedStorage:WaitForChild("KillEvent")
+local MAX_KILL_RANGE = 8 -- studs
+
+local function assignRoles(players)
+    local shuffled = {}
+    for _, p in ipairs(players) do table.insert(shuffled, p) end
+    for i = #shuffled, 2, -1 do
+        local j = math.random(i)
+        shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
+    end
+    shuffled[1]:SetAttribute("Role", "Murderer")
+    for i = 2, #shuffled do
+        shuffled[i]:SetAttribute("Role", "Innocent")
+    end
+end
+
+-- Server เป็นคนเช็คทุกอย่าง ไม่เชื่อค่าที่ client ส่งมาตรงๆ
+KillEvent.OnServerEvent:Connect(function(killer, target)
+    if killer:GetAttribute("Role") ~= "Murderer" then return end
+    if not target or not target.Character then return end
+
+    local killerRoot = killer.Character and killer.Character:FindFirstChild("HumanoidRootPart")
+    local targetRoot = target.Character:FindFirstChild("HumanoidRootPart")
+    if not killerRoot or not targetRoot then return end
+
+    local distance = (killerRoot.Position - targetRoot.Position).Magnitude
+    if distance > MAX_KILL_RANGE then
+        warn(killer.Name .. " tried to kill from too far: " .. distance)
+        return
+    end
+
+    target.Character.Humanoid.Health = 0
+end)
