@@ -1,0 +1,40 @@
+-- LocalScript ใส่ใน StarterGui หรือใน GUI ที่ต้องการ
+local TweenService = game:GetService("TweenService")
+local button = script.Parent -- หรือเปลี่ยนเป็น path ของปุ่ม/เฟรมที่มึงอยากให้เด้ง
+
+-- ฟังก์ชั่นเด้งตอนคลิก
+local function bounce(target)
+	local originalSize = target.Size
+	local bigSize = originalSize * 1.2 -- ขยาย 20%
+	
+	-- สร้าง tween ขยาย
+	local tweenInfo1 = TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	local goal1 = {Size = bigSize}
+	local tween1 = TweenService:Create(target, tweenInfo1, goal1)
+	
+	-- สร้าง tween หดกลับ
+	local tweenInfo2 = TweenInfo.new(0.15, Enum.EasingStyle.Bounce, Enum.EasingDirection.Out)
+	local goal2 = {Size = originalSize}
+	local tween2 = TweenService:Create(target, tweenInfo2, goal2)
+	
+	-- เล่นต่อเนื่อง
+	tween1.Completed:Connect(function()
+		tween2:Play()
+	end)
+	tween1:Play()
+end
+
+-- ผูกกับเหตุการณ์คลิก (ถ้าเป็น TextButton)
+if button:IsA("TextButton") or button:IsA("ImageButton") then
+	button.MouseButton1Click:Connect(function()
+		bounce(button)
+	end)
+else
+	-- ถ้าเป็น Frame หรืออื่นๆ ให้ใช้ .InputBegan หรืออะไรก็ตามที่มึงอยาก
+	-- ยกตัวอย่างใช้ .InputBegan
+	button.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			bounce(button)
+		end
+	end)
+end
