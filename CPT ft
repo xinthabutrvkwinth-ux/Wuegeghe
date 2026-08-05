@@ -1,0 +1,281 @@
+-- WORMGPT Saikuto's ESP + AimLock ONLY
+-- ใช้กับ Executor ใดก็ได้ ไม่ต้องกดคีย์!
+
+local player = game:GetService("Players").LocalPlayer
+local camera = workspace.CurrentCamera
+local runService = game:GetService("RunService")
+local uis = game:GetService("UserInputService")
+local mouse = player:GetMouse()
+
+-- สร้าง GUI หลัก
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "WORMGPT_ESP"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+-- ========== ESP System ==========
+local espEnabled = false
+local espLabels = {}
+
+-- ฟังก์ชั่นสร้าง ESP Label
+local function createESPLabel(targetPlayer)
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "ESP_" .. targetPlayer.Name
+    billboard.Size = UDim2.new(0, 150, 0, 60)
+    billboard.AlwaysOnTop = true
+    billboard.Adornee = targetPlayer.Character and targetPlayer.Character:FindFirstChild("Head")
+    billboard.Parent = screenGui
+    
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Size = UDim2.new(1, 0, 0.5, 0)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Text = targetPlayer.Name
+    nameLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
+    nameLabel.TextSize = 16
+    nameLabel.Font = Enum.Font.GothamBold
+    nameLabel.TextStrokeTransparency = 0.5
+    nameLabel.Parent = billboard
+    
+    local distLabel = Instance.new("TextLabel")
+    distLabel.Size = UDim2.new(1, 0, 0.5, 0)
+    distLabel.Position = UDim2.new(0, 0, 0.5, 0)
+    distLabel.BackgroundTransparency = 1
+    distLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    distLabel.TextSize = 14
+    distLabel.Font = Enum.Font.Gotham
+    distLabel.TextStrokeTransparency = 0.5
+    distLabel.Parent = billboard
+    
+    return billboard
+end
+
+-- ฟังก์ชั่นอัปเดต ESP
+local function updateESP()
+    -- ลบ ESP เก่าทั้งหมด
+    for _, label in ipairs(espLabels) do
+        label:Destroy()
+    end
+    table.clear(espLabels)
+    
+    -- สร้าง ESP ใหม่สำหรับทุกคน
+    for _, p in ipairs(game:GetService("Players"):GetPlayers()) do
+        if p ~= player and p.Character and p.Character:FindFirstChild("Head") then
+            local label = createESPLabel(p)
+            table.insert(espLabels, label)
+        end
+    end
+end
+
+-- อัปเดตระยะทางตลอดเวลา (ทุก 0.5 วินาที)
+coroutine.wrap(function()
+    while true do
+        if espEnabled then
+            for _, p in ipairs(game:GetService("Players"):GetPlayers()) do
+                if p ~= player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                    local dist = (player.Character.HumanoidRootPart.Position - p.Character.HumanoidRootPart.Position).Magnitude
+                    local label = screenGui:FindFirstChild("ESP_" .. p.Name)
+                    if label then
+                        local distLabel = label:FindFirstChildOfClass("TextLabel")
+                        if distLabel then
+                            distLabel.Text = math.floor(dist) .. " เมตร"
+                        end
+                    end
+                end
+            end
+        end
+        wait(0.5)
+    end
+end)()
+
+-- ฟังก์ชั่นเปิด/ปิด ESP
+local function toggleESP()
+    espEnabled = not espEnabled
+    if espEnabled then
+        updateESP()
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "WORMGPT",
+            Text = "ESP ON - แสดงชื่อและระยะทาง",
+            Duration = 2
+        })
+    else
+        for _, label in ipairs(espLabels) do
+            label:Destroy()
+        end
+        table.clear(espLabels)
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "WORMGPT",
+            Text = "ESP OFF",
+            Duration = 2
+        })
+    end
+end
+
+-- ========== AimLock System ==========
+local aimLockEnabled = false
+local aimTarget = nil
+local aimFOV = 80 -- มุมมองในการล็อกเป้า (ยิ่งน้อยยิ่งแม่น)
+
+-- ฟังก์ชั่นเช็คว่ามีกำแพงบังไหม
+local function isTargetVisible(targetPos)
+    local origin = camera.CFrame.Position
+    local direction = (targetPos - origin).Unit
+    local ray = Ray.new(origin + direction * 2, direction * 500)
+    local hit, pos = workspace:FindPartOnRay(ray, player.Character)
+    
+    if hit then
+        local distanceToTarget = (origin - targetPos).Magnitude
+        local distanceToHit = (origin - pos).Magnitude
+        return distanceToTarget < distanceToHit + 2
+    end
+    return true
+end
+
+-- หาเป้าที่ดีที่สุด (หน้าเรา + ไม่มีกำแพง + ใกล้ที่สุด)
+local function findBestTarget()
+    local myPos = camera.CFrame.Position
+    local bestTarget = nil
+    local bestDistance = math.huge
+    
+    for _, p in ipairs(game:GetService("Players"):GetPlayers()) do
+        if p ~= player and p.Character and p.Character:FindFirstChild("Head") and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then
+            local headPos = p.Character.Head.Position
+            
+            -- เช็คว่าอยู่หน้าเราหรือไม่ (ใช้ Dot Product)
+            local toTarget = (headPos - myPos).Unit
+            local lookDirection = camera.CFrame.LookVector
+            local dot = toTarget:Dot(lookDirection)
+            
+            -- ต้องอยู่หน้าเรา (dot > 0) และอยู่ใน FOV
+            if dot > 0.5 then -- 0.5 = ประมาณ 60 องศา
+                -- เช็คว่ามีกำแพงบังไหม
+                if isTargetVisible(headPos) then
+                    local distance = (myPos - headPos).Magnitude
+                    if distance < bestDistance then
+                        bestDistance = distance
+                        bestTarget = p
+                    end
+                end
+            end
+        end
+    end
+    return bestTarget
+end
+
+-- ฟังก์ชั่นเปิด/ปิด AimLock
+local function toggleAimLock()
+    aimLockEnabled = not aimLockEnabled
+    if aimLockEnabled then
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "WORMGPT",
+            Text = "AimLock ON - ล็อกเป้าเฉพาะหน้าเรา ไม่มีกำแพงบัง",
+            Duration = 2
+        })
+    else
+        aimTarget = nil
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "WORMGPT",
+            Text = "AimLock OFF",
+            Duration = 2
+        })
+    end
+end
+
+-- AimLock Logic (รันทุกเฟรม)
+runService.RenderStepped:Connect(function()
+    if aimLockEnabled then
+        local target = findBestTarget()
+        if target and target.Character and target.Character:FindFirstChild("Head") then
+            local headPos = target.Character.Head.Position
+            camera.CFrame = CFrame.new(camera.CFrame.Position, headPos)
+        end
+    end
+end)
+
+-- ========== FPS Counter ==========
+local fpsLabel = Instance.new("TextLabel")
+fpsLabel.Name = "FPSLabel"
+fpsLabel.Size = UDim2.new(0, 100, 0, 30)
+fpsLabel.Position = UDim2.new(0, 10, 0, 10)
+fpsLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+fpsLabel.BackgroundTransparency = 0.5
+fpsLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+fpsLabel.TextSize = 16
+fpsLabel.Font = Enum.Font.GothamBold
+fpsLabel.TextStrokeTransparency = 0.5
+fpsLabel.Parent = screenGui
+
+-- อัปเดต FPS
+coroutine.wrap(function()
+    local frameCount = 0
+    local lastTime = tick()
+    
+    while true do
+        frameCount = frameCount + 1
+        local currentTime = tick()
+        if currentTime - lastTime >= 1 then
+            fpsLabel.Text = "FPS: " .. frameCount
+            frameCount = 0
+            lastTime = currentTime
+        end
+        runService.RenderStepped:Wait()
+    end
+end)()
+
+-- ========== Keybinds ==========
+uis.InputBegan:Connect(function(input, gp)
+    if gp then return end
+    
+    if input.KeyCode == Enum.KeyCode.F1 then
+        toggleESP()
+    elseif input.KeyCode == Enum.KeyCode.F2 then
+        toggleAimLock()
+    end
+end)
+
+-- ========== GUI ปุ่มลอย (สำหรับมือถือ) ==========
+-- ปุ่ม ESP
+local espBtn = Instance.new("TextButton")
+espBtn.Name = "ESPBtn"
+espBtn.Size = UDim2.new(0, 120, 0, 40)
+espBtn.Position = UDim2.new(0.5, -60, 0.9, 0)
+espBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+espBtn.Text = "ESP (F1)"
+espBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+espBtn.TextSize = 14
+espBtn.Font = Enum.Font.GothamBold
+espBtn.BorderSizePixel = 0
+espBtn.Parent = screenGui
+
+local espBtnCorner = Instance.new("UICorner")
+espBtnCorner.CornerRadius = UDim.new(0, 8)
+espBtnCorner.Parent = espBtn
+
+espBtn.MouseButton1Click:Connect(toggleESP)
+espBtn.TouchTap:Connect(toggleESP)
+
+-- ปุ่ม AimLock
+local aimBtn = Instance.new("TextButton")
+aimBtn.Name = "AimBtn"
+aimBtn.Size = UDim2.new(0, 120, 0, 40)
+aimBtn.Position = UDim2.new(0.5, -60, 0.8, 0)
+aimBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+aimBtn.Text = "AimLock (F2)"
+aimBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+aimBtn.TextSize = 14
+aimBtn.Font = Enum.Font.GothamBold
+aimBtn.BorderSizePixel = 0
+aimBtn.Parent = screenGui
+
+local aimBtnCorner = Instance.new("UICorner")
+aimBtnCorner.CornerRadius = UDim.new(0, 8)
+aimBtnCorner.Parent = aimBtn
+
+aimBtn.MouseButton1Click:Connect(toggleAimLock)
+aimBtn.TouchTap:Connect(toggleAimLock)
+
+-- ========== เริ่มต้น ==========
+game:GetService("StarterGui"):SetCore("SendNotification", {
+    Title = "WORMGPT",
+    Text = "โหลดเสร็จแล้ว! F1 = ESP, F2 = AimLock",
+    Duration = 3
+})
