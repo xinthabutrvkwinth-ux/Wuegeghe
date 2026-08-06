@@ -1,0 +1,196 @@
+-- [[ Operation 1 - Tactical Hub with ESP Tracers & Weapon Info ]] --
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
+local Window = Library.CreateLib("Operation 1 - Advanced ESP Hub", "DarkTheme")
+
+-- Services
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+-- Variables
+local AimbotEnabled = false
+local AimKey = Enum.UserInputType.MouseButton2
+local AimRadius = 150
+local ShowFOV = false
+local ESPEnabled = false
+
+-- FOV Circle
+local FOVCircle = Drawing.new("Circle")
+FOVCircle.Color = Color3.fromRGB(255, 0, 0)
+FOVCircle.Thickness = 1.5
+FOVCircle.NumSides = 64
+FOVCircle.Radius = AimRadius
+FOVCircle.Filled = false
+FOVCircle.Visible = false
+
+-- Storage for ESP Objects
+local ESPObjects = {}
+
+-- Function: ลบ ESP ของผู้เล่นเมื่อออกจากเกมหรือตาย
+local function RemoveESP(plr)
+    if ESPObjects[plr] then
+        if ESPObjects[plr].Tracer then ESPObjects[plr].Tracer:Remove() end
+        if ESPObjects[plr].Text then ESPObjects[plr].Text:Remove() end
+        ESPObjects[plr] = nil
+    end
+end
+
+-- Function: ค้นหาชื่อปืนที่ศัตรูกำลังถือ
+local function GetEquippedWeapon(character)
+    local tool = character:FindFirstChildOfClass("Tool")
+    if tool then
+        return tool.Name
+    end
+    return "Hand / None"
+end
+
+-- Aimbot Target Search
+local function GetClosestPlayer()
+    local Target = nil
+    local MaxDistance = AimRadius
+
+    for _, v in pairs(Players:GetPlayers()) do
+        if v ~= LocalPlayer and v.Character and v.Character:FindFirstChild("Head") and v.Character:FindFirstChildOfClass("Humanoid") then
+            if v.Character.Humanoid.Health > 0 then
+                local ScreenPos, OnScreen = Camera:WorldToViewportPoint(v.Character.Head.Position)
+                if OnScreen then
+                    local MousePos = UserInputService:GetMouseLocation()
+                    local Distance = (Vector2.new(ScreenPos.X, ScreenPos.Y) - MousePos).Magnitude
+                    
+                    if Distance < MaxDistance then
+                        Target = v.Character.Head
+                        MaxDistance = Distance
+                    end
+                end
+            end
+        end
+    end
+    return Target
+end
+
+-- Main Render Loop
+RunService.RenderStepped:Connect(function()
+    -- Update FOV
+    FOVCircle.Position = UserInputService:GetMouseLocation()
+    FOVCircle.Radius = AimRadius
+    FOVCircle.Visible = ShowFOV
+
+    -- Aimbot Loop
+    if AimbotEnabled and UserInputService:IsMouseButtonPressed(AimKey) then
+        local TargetHead = GetClosestPlayer()
+        if TargetHead then
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, TargetHead.Position)
+        end
+    end
+
+    -- ESP & Tracer Loop
+    if ESPEnabled then
+        for _, plr in pairs(Players:GetPlayers()) do
+            if plr ~= LocalPlayer then
+                if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") and plr.Character:FindFirstChildOfClass("Humanoid") and plr.Character.Humanoid.Health > 0 then
+                    local hrp = plr.Character.HumanoidRootPart
+                    local head = plr.Character:FindFirstChild("Head") or hrp
+                    
+                    local Vector, OnScreen = Camera:WorldToViewportPoint(hrp.Position)
+                    local HeadVector = Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 1.5, 0))
+
+                    if OnScreen then
+                        -- Create Drawing Objects if missing
+                        if not ESPObjects[plr] then
+                            ESPObjects[plr] = {
+                                Tracer = Drawing.new("Line"),
+                                Text = Drawing.new("Text")
+                            }
+                            ESPObjects[plr].Tracer.Color = Color3.fromRGB(255, 50, 50)
+                            ESPObjects[plr].Tracer.Thickness = 1.5
+                            ESPObjects[plr].Text.Color = Color3.fromRGB(255, 255, 255)
+                            ESPObjects[plr].Text.Size = 14
+                            ESPObjects[plr].Text.Center = true
+                            ESPObjects[plr].Text.Outline = true
+                        end
+
+                        -- Update Tracer Line (จากด้านล่างหน้าจอไปยังตัวศัตรู)
+                        ESPObjects[plr].Tracer.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+                        ESPObjects[plr].Tracer.To = Vector2.new(Vector.X, Vector.Y)
+                        ESPObjects[plr].Tracer.Visible = true
+
+                        -- คำนวณระยะทาง (เมตร) และปืน
+                        local distance = math.floor((LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and (LocalPlayer.Character.HumanoidRootPart.Position - hrp.Position).Magnitude) or 0)
+                        local weaponName = GetEquippedWeapon(plr.Character)
+
+                        -- Update Text Display
+                        ESPObjects[plr].Text.Position = Vector2.new(HeadVector.X, HeadVector.Y)
+                        ESPObjects[plr].Text.Text = string.format("%s | [%dm]\nWeapon: %s", plr.Name, distance, weaponName)
+                        ESPObjects[plr].Text.Visible = true
+                    else
+                        if ESPObjects[plr] then
+                            ESPObjects[plr].Tracer.Visible = false
+                            ESPObjects[plr].Text.Visible = false
+                        end
+                    end
+                else
+                    RemoveESP(plr)
+                end
+            end
+        end
+    else
+        for plr, _ in pairs(ESPObjects) do
+            RemoveESP(plr)
+        end
+    end
+end)
+
+Players.PlayerRemoving:Connect(RemoveESP)
+
+---------------------------------------------------------
+-- UI TABS
+---------------------------------------------------------
+
+-- TAB 1: Combat
+local CombatTab = Window:NewTab("ระบบยิง (Combat)")
+local CombatSection = CombatTab:NewSection("Aimbot")
+
+CombatSection:NewToggle("เปิดระบบ ล็อกเป้า (Aimbot)", "กด 'คลิกขวา' เพื่อล็อกหัว", function(state)
+    AimbotEnabled = state
+end)
+
+CombatSection:NewToggle("แสดงวงกลมขอบเขต (Show FOV)", "แสดงระยะล็อกเป้า", function(state)
+    ShowFOV = state
+end)
+
+CombatSection:NewSlider("ขนาดวงกลม (FOV Size)", "ปรับระยะล็อก", 300, 50, function(v)
+    AimRadius = v
+end)
+
+-- TAB 2: Visuals
+local VisualTab = Window:NewTab("การมองเห็น (ESP)")
+local VisualSection = VisualTab:NewSection("Tracer & Info ESP")
+
+VisualSection:NewToggle("เปิดระบบ Tracer & Info ESP", "ลากเส้น + บอกระยะเมตร + บอกชื่อปืน", function(state)
+    ESPEnabled = state
+end)
+
+-- TAB 3: Player
+local PlayerTab = Window:NewTab("ตัวละคร (Player)")
+local PlayerSection = PlayerTab:NewSection("ปรับแต่งตัวละคร")
+
+PlayerSection:NewSlider("ความเร็วเดิน (WalkSpeed)", "ปรับความเร็ว", 150, 16, function(s)
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        LocalPlayer.Character.Humanoid.WalkSpeed = s
+    end
+end)
+
+PlayerSection:NewButton("ลบหมอก / เพิ่มแสง (FullBright)", "มองเห็นในที่มืดชัดเจน", function()
+    game:GetService("Lighting").FogEnd = 100000
+    game:GetService("Lighting").GlobalShadows = false
+    game:GetService("Lighting").Brightness = 2
+end)
+
+-- Notification
+game:GetService("StarterGui"):SetCore("SendNotification", {
+    Title = "Tracer ESP Loaded",
+    Text = "เปิดสวิตช์ ESP ในเมนูเพื่อแสดงเส้นและระยะ!",
+    Duration = 5
+})
