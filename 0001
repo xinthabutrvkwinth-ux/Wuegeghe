@@ -1,0 +1,310 @@
+-- [[ Operation 1 - Fixed & Fully Working Mobile Hub ]] --
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+
+-- Container สำหรับ UI (รองรับ Delta Mobile)
+local parentGui = (gethui and gethui()) or CoreGui or LocalPlayer:WaitForChild("PlayerGui")
+
+-- ลบ UI เก่าหากมีอยู่
+if parentGui:FindFirstChild("Operation1MobileHub") then
+    parentGui.Operation1MobileHub:Destroy()
+end
+
+-- Variables
+local AimbotEnabled = false
+local AimRadius = 150
+local ShowFOV = false
+local ESPEnabled = false
+local HitboxEnabled = false
+local HitboxSize = 5
+local NoclipEnabled = false
+
+---------------------------------------------------------
+-- สร้างหน้าต่าง UI และปุ่มย่อ (Custom Mobile UI)
+---------------------------------------------------------
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "Operation1MobileHub"
+ScreenGui.Parent = parentGui
+ScreenGui.ResetOnSpawn = false
+
+-- ปุ่มลอย ย่อ/เปิด UI
+local ToggleBtn = Instance.new("TextButton")
+ToggleBtn.Name = "ToggleBtn"
+ToggleBtn.Parent = ScreenGui
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(180, 20, 20)
+ToggleBtn.Position = UDim2.new(0, 15, 0, 15)
+ToggleBtn.Size = UDim2.new(0, 85, 0, 35)
+ToggleBtn.Font = Enum.Font.SourceSansBold
+ToggleBtn.Text = "เปิด/ย่อ UI"
+ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleBtn.TextSize = 14
+ToggleBtn.Active = true
+ToggleBtn.Draggable = true
+
+local BtnCorner = Instance.new("UICorner")
+BtnCorner.CornerRadius = UDim.new(0, 8)
+BtnCorner.Parent = ToggleBtn
+
+-- Main Window
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Parent = ScreenGui
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+MainFrame.BorderColor3 = Color3.fromRGB(180, 20, 20)
+MainFrame.BorderSizePixel = 2
+MainFrame.Position = UDim2.new(0.5, -150, 0.5, -120)
+MainFrame.Size = UDim2.new(0, 300, 0, 240)
+MainFrame.Active = true
+MainFrame.Draggable = true
+
+local Title = Instance.new("TextLabel")
+Title.Parent = MainFrame
+Title.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.Font = Enum.Font.SourceSansBold
+Title.Text = "  Operation 1 - Mobile Hub"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 16
+Title.TextXAlignment = Enum.TextXAlignment.Left
+
+-- สวิตช์ย่อ/เปิด UI (ทำงานแน่นอน 100%)
+ToggleBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = not MainFrame.Visible
+end)
+
+-- Scroll Container สำหรับปุ่มฟังก์ชัน
+local Scroll = Instance.new("ScrollingFrame")
+Scroll.Parent = MainFrame
+Scroll.BackgroundTransparency = 1
+Scroll.Position = UDim2.new(0, 5, 0, 35)
+Scroll.Size = UDim2.new(1, -10, 1, -40)
+Scroll.CanvasSize = UDim2.new(0, 0, 0, 380)
+Scroll.ScrollBarThickness = 6
+
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.Parent = Scroll
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+UIListLayout.Padding = UDim.new(0, 5)
+
+-- Function สร้างปุ่มสวิตช์ (Toggle Button Creator)
+local function CreateToggle(name, default, callback)
+    local state = default
+    local btn = Instance.new("TextButton")
+    btn.Parent = Scroll
+    btn.Size = UDim2.new(1, -10, 0, 35)
+    btn.Font = Enum.Font.SourceSansBold
+    btn.TextSize = 14
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    
+    local function update()
+        btn.BackgroundColor3 = state and Color3.fromRGB(40, 140, 40) or Color3.fromRGB(50, 50, 50)
+        btn.Text = name .. ": " .. (state and "เปิด (ON)" or "ปิด (OFF)")
+    end
+    
+    btn.MouseButton1Click:Connect(function()
+        state = not state
+        update()
+        callback(state)
+    end)
+    
+    update()
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = btn
+end
+
+-- Function สร้างปุ่มกดทำงานครั้งเดียว (Action Button)
+local function CreateButton(name, callback)
+    local btn = Instance.new("TextButton")
+    btn.Parent = Scroll
+    btn.Size = UDim2.new(1, -10, 0, 35)
+    btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    btn.Font = Enum.Font.SourceSansBold
+    btn.Text = name
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.TextSize = 14
+    btn.MouseButton1Click:Connect(callback)
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = btn
+end
+
+---------------------------------------------------------
+-- HELPER FUNCTIONS & CORE LOGIC
+---------------------------------------------------------
+local FOVCircle = Drawing.new("Circle")
+FOVCircle.Color = Color3.fromRGB(255, 0, 0)
+FOVCircle.Thickness = 1.5
+FOVCircle.NumSides = 64
+FOVCircle.Radius = AimRadius
+FOVCircle.Filled = false
+FOVCircle.Visible = false
+
+local ESPObjects = {}
+
+local function RemoveESP(plr)
+    if ESPObjects[plr] then
+        if ESPObjects[plr].Tracer then ESPObjects[plr].Tracer:Remove() end
+        if ESPObjects[plr].Text then ESPObjects[plr].Text:Remove() end
+        ESPObjects[plr] = nil
+    end
+end
+
+local function GetEquippedWeapon(character)
+    local tool = character:FindFirstChildOfClass("Tool")
+    return tool and tool.Name or "Hand / None"
+end
+
+local function GetClosestPlayer()
+    local Target = nil
+    local MaxDistance = AimRadius
+
+    for _, v in pairs(Players:GetPlayers()) do
+        if v ~= LocalPlayer and v.Character and v.Character:FindFirstChild("Head") and v.Character:FindFirstChildOfClass("Humanoid") then
+            if v.Character.Humanoid.Health > 0 then
+                local ScreenPos, OnScreen = Camera:WorldToViewportPoint(v.Character.Head.Position)
+                if OnScreen then
+                    local CenterPos = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+                    local Distance = (Vector2.new(ScreenPos.X, ScreenPos.Y) - CenterPos).Magnitude
+                    if Distance < MaxDistance then
+                        Target = v.Character.Head
+                        MaxDistance = Distance
+                    end
+                end
+            end
+        end
+    end
+    return Target
+end
+
+---------------------------------------------------------
+-- MAIN LOOPS
+---------------------------------------------------------
+
+-- Noclip
+RunService.Stepped:Connect(function()
+    if NoclipEnabled and LocalPlayer.Character then
+        for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+            end
+        end
+    end
+end)
+
+-- Main Render Loop
+RunService.RenderStepped:Connect(function()
+    FOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    FOVCircle.Radius = AimRadius
+    FOVCircle.Visible = ShowFOV
+
+    -- Auto Camera Lock (สำหรับมือถือ ไม่ต้องกดคลิกขวาค้าง)
+    if AimbotEnabled then
+        local TargetHead = GetClosestPlayer()
+        if TargetHead then
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, TargetHead.Position)
+        end
+    end
+
+    -- Hitbox Extender (ขยายหัวศัตรู)
+    if HitboxEnabled then
+        for _, plr in pairs(Players:GetPlayers()) do
+            if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("Head") then
+                pcall(function()
+                    plr.Character.Head.Size = Vector3.new(HitboxSize, HitboxSize, HitboxSize)
+                    plr.Character.Head.Transparency = 0.5
+                    plr.Character.Head.Color = Color3.fromRGB(255, 0, 0)
+                    plr.Character.Head.Material = Enum.Material.Neon
+                    plr.Character.Head.CanCollide = false
+                end)
+            end
+        end
+    end
+
+    -- Tracer & Info ESP
+    if ESPEnabled then
+        for _, plr in pairs(Players:GetPlayers()) do
+            if plr ~= LocalPlayer then
+                if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") and plr.Character:FindFirstChildOfClass("Humanoid") and plr.Character.Humanoid.Health > 0 then
+                    local hrp = plr.Character.HumanoidRootPart
+                    local head = plr.Character:FindFirstChild("Head") or hrp
+                    
+                    local Vector, OnScreen = Camera:WorldToViewportPoint(hrp.Position)
+                    local HeadVector = Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 1.5, 0))
+
+                    if OnScreen then
+                        if not ESPObjects[plr] then
+                            ESPObjects[plr] = {
+                                Tracer = Drawing.new("Line"),
+                                Text = Drawing.new("Text")
+                            }
+                            ESPObjects[plr].Tracer.Color = Color3.fromRGB(255, 30, 30)
+                            ESPObjects[plr].Tracer.Thickness = 1.5
+                            ESPObjects[plr].Text.Color = Color3.fromRGB(255, 255, 255)
+                            ESPObjects[plr].Text.Size = 13
+                            ESPObjects[plr].Text.Center = true
+                            ESPObjects[plr].Text.Outline = true
+                        end
+
+                        ESPObjects[plr].Tracer.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+                        ESPObjects[plr].Tracer.To = Vector2.new(Vector.X, Vector.Y)
+                        ESPObjects[plr].Tracer.Visible = true
+
+                        local distance = math.floor((LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and (LocalPlayer.Character.HumanoidRootPart.Position - hrp.Position).Magnitude) or 0)
+                        local weaponName = GetEquippedWeapon(plr.Character)
+
+                        ESPObjects[plr].Text.Position = Vector2.new(HeadVector.X, HeadVector.Y)
+                        ESPObjects[plr].Text.Text = string.format("%s | [%dm]\nWeapon: %s", plr.Name, distance, weaponName)
+                        ESPObjects[plr].Text.Visible = true
+                    else
+                        if ESPObjects[plr] then
+                            ESPObjects[plr].Tracer.Visible = false
+                            ESPObjects[plr].Text.Visible = false
+                        end
+                    end
+                else
+                    RemoveESP(plr)
+                end
+            end
+        end
+    else
+        for plr, _ in pairs(ESPObjects) do
+            RemoveESP(plr)
+        end
+    end
+end)
+
+Players.PlayerRemoving:Connect(RemoveESP)
+
+---------------------------------------------------------
+-- UI CONTROLS ASSIGNMENT
+---------------------------------------------------------
+CreateToggle("Aimbot (ล็อกเป้าอัตโนมัติ)", false, function(s) AimbotEnabled = s end)
+CreateToggle("แสดงวงกลม FOV", false, function(s) ShowFOV = s end)
+CreateToggle("Hitbox ขยายหัวใหญ่", false, function(s) HitboxEnabled = s end)
+CreateToggle("Tracer & Info ESP (เส้น+เมตร+ปืน)", false, function(s) ESPEnabled = s end)
+CreateToggle("Noclip (เดินทะลุกำแพง)", false, function(s) NoclipEnabled = s end)
+
+CreateButton("เพิ่มความเร็วเดิน (Speed 50)", function()
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        LocalPlayer.Character.Humanoid.WalkSpeed = 50
+    end
+end)
+
+CreateButton("ลบหมอก / สว่างชัดเจน (FullBright)", function()
+    game:GetService("Lighting").FogEnd = 100000
+    game:GetService("Lighting").GlobalShadows = false
+    game:GetService("Lighting").Brightness = 2
+end)
+
+-- Notification
+game:GetService("StarterGui"):SetCore("SendNotification", {
+    Title = "Fixed Mobile Hub",
+    Text = "ระบบย่อ UI และฟังก์ชันทั้งหมดพร้อมใช้งานแล้วครับ!",
+    Duration = 5
+})
