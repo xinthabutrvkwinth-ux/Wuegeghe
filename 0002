@@ -1,0 +1,637 @@
+--[[ 
+  Delta Ultimate Master Script (v8.0 Full Autonomous AI Combat System):
+  - ระบบปฏิบัติการ AI อัตโนมัติเต็มรูปแบบ (Full AI Auto Combat):
+    • Auto Fire / Triggerbot: ยิงปืนอัตโนมัติทันทีเมื่อเป้าตรงศัตรู/หัวเป้าหมาย
+    • Auto Reload: ตรวจจับและสั่งรีโหลดกระสุนให้อัตโนมัติเมื่อกระสุนหมด
+    • Auto Melee Slash: สแกนและฟันดาบอัตโนมัติในระยะประชิด (14 Studs)
+    • Soft-Aim & Auto Face: ปรับองศาเล็งและหมุนตัวหาศัตรูอัตโนมัติ
+  - Universal Head Lock, Player Lock, Smart ESP Engine (0% CPU Overhead เมื่อปิด)
+  - Fly, Inf Jump, Interactive AI Companion
+--]]
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local CoreGui = game:GetService("CoreGui")
+local UserInputService = game:GetService("UserInputService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local LocalPlayer = Players.LocalPlayer
+local Camera = Workspace.CurrentCamera
+
+if not Drawing then
+    LocalPlayer:Kick("Executor ของคุณไม่รองรับ Drawing API")
+    return
+end
+
+-- === ตั้งค่าระบบหลัก ===
+local ESPConfig = {
+    Enabled = true,
+    Boxes = true,
+    HealthBar = true,
+    Names = true,
+    Distance = true,
+    Tool = true,
+    Tracers = true,
+    HeadDot = true,
+    TeamCheck = false,
+    VisibleColor = Color3.fromRGB(0, 255, 120),
+    HiddenColor = Color3.fromRGB(255, 50, 50),
+    TracerColor = Color3.fromRGB(0, 200, 255),
+    HeadColor = Color3.fromRGB(255, 230, 0)
+}
+
+local isLocking = false
+local isHeadLocking = false
+local fullAIEnabled = true      -- ระบบ AI อัตโนมัติเต็มรูปแบบ
+local autoShootEnabled = true   -- ระบบยิงอัตโนมัติ (Auto Fire)
+local autoReloadEnabled = true  -- ระบบรีโหลดอัตโนมัติ (Auto Reload)
+local flyEnabled = false
+local infJumpEnabled = false
+local currentTargetChar = nil
+
+local FLY_SPEED = 50
+local SMOOTHNESS = 0.15
+local PREDICTION_TIME = 0.035
+local MELEE_RANGE = 14
+local lastShootTime = 0
+local lastReloadTime = 0
+
+-- === 1. ระบบ UI หน้าต่างควบคุม ===
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "DeltaUltraESPCompanionUI"
+pcall(function() ScreenGui.Parent = CoreGui end)
+if not ScreenGui.Parent then ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
+
+local function createButton(name, text, pos, color)
+    local btn = Instance.new("TextButton")
+    btn.Name = name
+    btn.Parent = ScreenGui
+    btn.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+    btn.Position = pos
+    btn.Size = UDim2.new(0, 165, 0, 30)
+    btn.Font = Enum.Font.SourceSansBold
+    btn.Text = text
+    btn.TextColor3 = color
+    btn.TextSize = 13
+    btn.Active = true
+    btn.Draggable = true
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+    return btn
+end
+
+local EspBtn       = createButton("EspBtn",       "ESP: ON",                 UDim2.new(0.05, 0, 0.05, 0), Color3.fromRGB(0, 255, 120))
+local FullAIBtn    = createButton("FullAIBtn",    "🤖 Full AI Mode: ON",     UDim2.new(0.05, 0, 0.10, 0), Color3.fromRGB(0, 220, 255))
+local AutoShootBtn = createButton("AutoShootBtn", "🔥 Auto Fire: ON",       UDim2.new(0.05, 0, 0.15, 0), Color3.fromRGB(255, 170, 0))
+local HeadLockBtn  = createButton("HeadLockBtn",  "🎯 Head Lock: OFF",       UDim2.new(0.05, 0, 0.20, 0), Color3.fromRGB(255, 60, 60))
+local LockBtn      = createButton("LockBtn",      "Player Lock: OFF",        UDim2.new(0.05, 0, 0.25, 0), Color3.fromRGB(255, 60, 60))
+local FlyBtn       = createButton("FlyBtn",       "Fly: OFF",               UDim2.new(0.05, 0, 0.30, 0), Color3.fromRGB(255, 60, 60))
+local JumpBtn      = createButton("JumpBtn",     "Inf Jump: OFF",          UDim2.new(0.05, 0, 0.35, 0), Color3.fromRGB(255, 60, 60))
+local ChatBtn      = createButton("ChatBtn",      "💬 AI Companion",        UDim2.new(0.05, 0, 0.40, 0), Color3.fromRGB(100, 200, 255))
+
+-- Chat Frame setup
+local ChatFrame = Instance.new("Frame")
+ChatFrame.Name = "AIChatFrame"
+ChatFrame.Parent = ScreenGui
+ChatFrame.BackgroundColor3 = Color3.fromRGB(20, 22, 30)
+ChatFrame.Position = UDim2.new(0.05, 0, 0.46, 0)
+ChatFrame.Size = UDim2.new(0, 340, 0, 240)
+ChatFrame.Visible = false
+ChatFrame.Active = true
+ChatFrame.Draggable = true
+Instance.new("UICorner", ChatFrame).CornerRadius = UDim.new(0, 10)
+
+local ChatTitle = Instance.new("TextLabel")
+ChatTitle.Parent = ChatFrame
+ChatTitle.Size = UDim2.new(1, 0, 0, 28)
+ChatTitle.BackgroundColor3 = Color3.fromRGB(30, 35, 50)
+ChatTitle.Text = "  🤖 Delta AI Companion (Autonomous OS v8.0)"
+ChatTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+ChatTitle.Font = Enum.Font.SourceSansBold
+ChatTitle.TextSize = 13
+ChatTitle.TextXAlignment = Enum.TextXAlignment.Left
+Instance.new("UICorner", ChatTitle).CornerRadius = UDim.new(0, 10)
+
+local ChatScroll = Instance.new("ScrollingFrame")
+ChatScroll.Parent = ChatFrame
+ChatScroll.Position = UDim2.new(0, 10, 0, 33)
+ChatScroll.Size = UDim2.new(1, -20, 0, 160)
+ChatScroll.BackgroundTransparency = 1
+ChatScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+ChatScroll.ScrollBarThickness = 4
+
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.Parent = ChatScroll
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+UIListLayout.Padding = UDim.new(0, 4)
+
+local ChatInput = Instance.new("TextBox")
+ChatInput.Parent = ChatFrame
+ChatInput.Position = UDim2.new(0, 10, 0, 200)
+ChatInput.Size = UDim2.new(1, -75, 0, 30)
+ChatInput.BackgroundColor3 = Color3.fromRGB(35, 38, 50)
+ChatInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+ChatInput.PlaceholderText = "สั่งงาน AI..."
+ChatInput.Font = Enum.Font.SourceSans
+ChatInput.TextSize = 13
+Instance.new("UICorner", ChatInput).CornerRadius = UDim.new(0, 6)
+
+local SendBtn = Instance.new("TextButton")
+SendBtn.Parent = ChatFrame
+SendBtn.Position = UDim2.new(1, -60, 0, 200)
+SendBtn.Size = UDim2.new(0, 50, 0, 30)
+SendBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+SendBtn.Text = "ส่ง"
+SendBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+SendBtn.Font = Enum.Font.SourceSansBold
+SendBtn.TextSize = 13
+Instance.new("UICorner", SendBtn).CornerRadius = UDim.new(0, 6)
+
+-- === 2. Wallcheck System ===
+local function isVisible(targetCharacter)
+    local head = targetCharacter:FindFirstChild("Head") or targetCharacter:FindFirstChild("PrimaryPart")
+    if not head then return false end
+    local origin = Camera.CFrame.Position
+    local direction = head.Position - origin
+    
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+    raycastParams.FilterDescendantsInstances = {LocalPlayer.Character, targetCharacter}
+    raycastParams.IgnoreWater = true
+    return Workspace:Raycast(origin, direction, raycastParams) == nil
+end
+
+-- === 3. AI Target Scanner ===
+local function getClosestLivingTarget()
+    local myChar = LocalPlayer.Character
+    local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return nil, math.huge end
+
+    local closestPart = nil
+    local shortestDist = math.huge
+
+    for _, obj in pairs(Workspace:GetDescendants()) do
+        if obj:IsA("Model") and obj ~= myChar then
+            local hum = obj:FindFirstChildOfClass("Humanoid")
+            local head = obj:FindFirstChild("Head") or obj:FindFirstChild("UpperTorso") or obj.PrimaryPart
+            
+            if hum and hum.Health > 0 and head then
+                local dist = (myRoot.Position - head.Position).Magnitude
+                if dist < shortestDist and isVisible(obj) then
+                    shortestDist = dist
+                    closestPart = head
+                end
+            end
+        end
+    end
+    return closestPart, shortestDist
+end
+
+-- === 4. Full Autonomous AI Engine (ยิง/ฟัน/รีโหลด/เล็ง อัตโนมัติ) ===
+RunService.Heartbeat:Connect(function()
+    if not fullAIEnabled then return end
+    
+    local myChar = LocalPlayer.Character
+    if not myChar or not myChar:FindFirstChild("HumanoidRootPart") then return end
+    local myRoot = myChar.HumanoidRootPart
+    local equippedTool = myChar:FindFirstChildOfClass("Tool")
+    
+    local targetHead, targetDist = getClosestLivingTarget()
+
+    -- [A] ระบบ Auto Reload กระสุนให้อัตโนมัติ
+    if autoReloadEnabled and equippedTool then
+        local ammoValue = equippedTool:FindFirstChild("Ammo") or equippedTool:FindFirstChild("Clip") or equippedTool:FindFirstChild("StoredAmmo")
+        if ammoValue and (ammoValue.Value == 0 or ammoValue.Value < 1) and tick() - lastReloadTime > 1.5 then
+            lastReloadTime = tick()
+            pcall(function()
+                VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.R, false, game)
+                task.wait(0.05)
+                VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.R, false, game)
+            end)
+        end
+    end
+
+    if not targetHead then return end
+
+    -- [B] ระบบ Auto Melee (หมุนตัว+ฟันอัตโนมัติในระยะประชิด)
+    if targetDist <= MELEE_RANGE then
+        local targetPos = Vector3.new(targetHead.Position.X, myRoot.Position.Y, targetHead.Position.Z)
+        myRoot.CFrame = myRoot.CFrame:Lerp(CFrame.new(myRoot.Position, targetPos), 0.25)
+        
+        if equippedTool and tick() - lastShootTime > 0.25 then
+            lastShootTime = tick()
+            equippedTool:Activate()
+        end
+    end
+
+    -- [C] ระบบ Auto Fire / Triggerbot (ยิงปืนอัตโนมัติเมื่อเล็งตรงเป้าหมาย)
+    if autoShootEnabled and equippedTool and targetDist > MELEE_RANGE then
+        local screenPos, onScreen = Camera:WorldToViewportPoint(targetHead.Position)
+        if onScreen then
+            local mousePos = UserInputService:GetMouseLocation()
+            local distToCrosshair = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+            
+            -- ปรับองศาเล็งสมูท
+            if distToCrosshair < 150 then
+                local predictedPos = targetHead.Position + (targetHead.Velocity * PREDICTION_TIME)
+                Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, predictedPos), 0.08)
+            end
+
+            -- สั่งยิงอัตโนมัติ (Auto Trigger) เมื่อเป้าเข้าใกล้ศูนย์เล็ง
+            if distToCrosshair < 40 and tick() - lastShootTime > 0.12 then
+                lastShootTime = tick()
+                equippedTool:Activate()
+            end
+        end
+    end
+end)
+
+-- === 5. Smart ESP Engine (Drawing API) ===
+local ESPObjects = {}
+
+local function createESP(player)
+    if player == LocalPlayer then return end
+
+    local objects = {
+        boxOutline = Drawing.new("Square"),
+        box = Drawing.new("Square"),
+        healthOutline = Drawing.new("Square"),
+        healthBar = Drawing.new("Square"),
+        name = Drawing.new("Text"),
+        distance = Drawing.new("Text"),
+        tool = Drawing.new("Text"),
+        tracer = Drawing.new("Line"),
+        headDot = Drawing.new("Circle")
+    }
+
+    objects.boxOutline.Thickness = 3
+    objects.boxOutline.Color = Color3.fromRGB(0, 0, 0)
+    objects.boxOutline.Filled = false
+
+    objects.box.Thickness = 1.5
+    objects.box.Filled = false
+
+    objects.healthOutline.Thickness = 1
+    objects.healthOutline.Color = Color3.fromRGB(0, 0, 0)
+    objects.healthOutline.Filled = true
+
+    objects.healthBar.Thickness = 1
+    objects.healthBar.Filled = true
+
+    objects.name.Size = 14
+    objects.name.Center = true
+    objects.name.Outline = true
+    objects.name.OutlineColor = Color3.fromRGB(0, 0, 0)
+    objects.name.Color = Color3.fromRGB(255, 255, 255)
+
+    objects.distance.Size = 12
+    objects.distance.Center = true
+    objects.distance.Outline = true
+    objects.distance.OutlineColor = Color3.fromRGB(0, 0, 0)
+    objects.distance.Color = Color3.fromRGB(200, 200, 200)
+
+    objects.tool.Size = 12
+    objects.tool.Center = true
+    objects.tool.Outline = true
+    objects.tool.OutlineColor = Color3.fromRGB(0, 0, 0)
+    objects.tool.Color = Color3.fromRGB(255, 220, 100)
+
+    objects.tracer.Thickness = 1.2
+
+    objects.headDot.Thickness = 1
+    objects.headDot.Filled = true
+    objects.headDot.Color = ESPConfig.HeadColor
+    objects.headDot.NumSides = 12
+
+    ESPObjects[player] = objects
+end
+
+local function removeESP(player)
+    if ESPObjects[player] then
+        for _, obj in pairs(ESPObjects[player]) do pcall(function() obj:Remove() end) end
+        ESPObjects[player] = nil
+    end
+end
+
+for _, p in pairs(Players:GetPlayers()) do createESP(p) end
+Players.PlayerAdded:Connect(createESP)
+Players.PlayerRemoving:Connect(removeESP)
+
+local function hideAllESP()
+    for player, objs in pairs(ESPObjects) do
+        for _, obj in pairs(objs) do if obj.Visible then obj.Visible = false end end
+    end
+end
+
+RunService.RenderStepped:Connect(function()
+    if not ESPConfig.Enabled then
+        hideAllESP()
+        return
+    end
+
+    for player, objs in pairs(ESPObjects) do
+        local char = player.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        local head = char and char:FindFirstChild("Head")
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+
+        local isTeam = ESPConfig.TeamCheck and player.Team == LocalPlayer.Team
+
+        if char and root and head and hum and hum.Health > 0 and not isTeam then
+            local rootPos, rootOnScreen = Camera:WorldToViewportPoint(root.Position)
+            local headPos, headOnScreen = Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0))
+            local legPos, legOnScreen = Camera:WorldToViewportPoint(root.Position - Vector3.new(0, 3, 0))
+
+            if rootOnScreen and headOnScreen and legOnScreen then
+                local visible = isVisible(char)
+                local themeColor = visible and ESPConfig.VisibleColor or ESPConfig.HiddenColor
+
+                local boxHeight = math.abs(headPos.Y - legPos.Y)
+                local boxWidth = boxHeight / 1.8
+                local boxPos = Vector2.new(rootPos.X - boxWidth / 2, headPos.Y)
+
+                if ESPConfig.Boxes then
+                    objs.boxOutline.Size = Vector2.new(boxWidth, boxHeight)
+                    objs.boxOutline.Position = boxPos
+                    objs.boxOutline.Visible = true
+
+                    objs.box.Size = Vector2.new(boxWidth, boxHeight)
+                    objs.box.Position = boxPos
+                    objs.box.Color = themeColor
+                    objs.box.Visible = true
+                else
+                    objs.boxOutline.Visible = false
+                    objs.box.Visible = false
+                end
+
+                if ESPConfig.HealthBar then
+                    local hpPercent = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
+                    local barHeight = boxHeight * hpPercent
+                    local barPos = Vector2.new(boxPos.X - 6, boxPos.Y + (boxHeight - barHeight))
+
+                    objs.healthOutline.Size = Vector2.new(3, boxHeight)
+                    objs.healthOutline.Position = Vector2.new(boxPos.X - 6, boxPos.Y)
+                    objs.healthOutline.Visible = true
+
+                    objs.healthBar.Size = Vector2.new(3, barHeight)
+                    objs.healthBar.Position = barPos
+                    objs.healthBar.Color = Color3.fromRGB(255 - (hpPercent * 255), hpPercent * 255, 0)
+                    objs.healthBar.Visible = true
+                else
+                    objs.healthOutline.Visible = false
+                    objs.healthBar.Visible = false
+                end
+
+                if ESPConfig.Names then
+                    objs.name.Text = player.DisplayName
+                    objs.name.Position = Vector2.new(rootPos.X, boxPos.Y - 16)
+                    objs.name.Visible = true
+                else
+                    objs.name.Visible = false
+                end
+
+                if ESPConfig.Distance then
+                    local myChar = LocalPlayer.Character
+                    local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+                    local distMeters = myRoot and ((myRoot.Position - root.Position).Magnitude * 0.28) or 0
+                    objs.distance.Text = string.format("[%.1f ม.]", distMeters)
+                    objs.distance.Position = Vector2.new(rootPos.X, boxPos.Y + boxHeight + 2)
+                    objs.distance.Visible = true
+                else
+                    objs.distance.Visible = false
+                end
+
+                if ESPConfig.Tool then
+                    local equippedTool = char:FindFirstChildOfClass("Tool")
+                    objs.tool.Text = equippedTool and string.format("🗡️ %s", equippedTool.Name) or "มือเปล่า"
+                    objs.tool.Position = Vector2.new(rootPos.X, boxPos.Y + boxHeight + 15)
+                    objs.tool.Visible = true
+                else
+                    objs.tool.Visible = false
+                end
+
+                if ESPConfig.Tracers then
+                    objs.tracer.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+                    objs.tracer.To = Vector2.new(rootPos.X, legPos.Y)
+                    objs.tracer.Color = themeColor
+                    objs.tracer.Visible = true
+                else
+                    objs.tracer.Visible = false
+                end
+
+                if ESPConfig.HeadDot then
+                    local headRadius = math.clamp(boxHeight / 10, 2, 8)
+                    objs.headDot.Position = Vector2.new(headPos.X, headPos.Y + (headRadius / 2))
+                    objs.headDot.Radius = headRadius
+                    objs.headDot.Visible = true
+                else
+                    objs.headDot.Visible = false
+                end
+            else
+                for _, obj in pairs(objs) do obj.Visible = false end
+            end
+        else
+            for _, obj in pairs(objs) do obj.Visible = false end
+        end
+    end
+end)
+
+-- === 6. Toggle Functions ===
+local function toggleESP(state)
+    ESPConfig.Enabled = state
+    EspBtn.Text = ESPConfig.Enabled and "ESP: ON" or "ESP: OFF"
+    EspBtn.TextColor3 = ESPConfig.Enabled and Color3.fromRGB(0, 255, 120) or Color3.fromRGB(255, 60, 60)
+    if not ESPConfig.Enabled then hideAllESP() end
+end
+
+local function toggleFullAI(state)
+    fullAIEnabled = state
+    FullAIBtn.Text = fullAIEnabled and "🤖 Full AI Mode: ON" or "🤖 Full AI Mode: OFF"
+    FullAIBtn.TextColor3 = fullAIEnabled and Color3.fromRGB(0, 220, 255) or Color3.fromRGB(255, 60, 60)
+end
+
+local function toggleAutoShoot(state)
+    autoShootEnabled = state
+    AutoShootBtn.Text = autoShootEnabled and "🔥 Auto Fire: ON" or "🔥 Auto Fire: OFF"
+    AutoShootBtn.TextColor3 = autoShootEnabled and Color3.fromRGB(255, 170, 0) or Color3.fromRGB(255, 60, 60)
+end
+
+local function toggleHeadLock(state)
+    isHeadLocking = state
+    HeadLockBtn.Text = isHeadLocking and "🎯 Head Lock: ON" or "🎯 Head Lock: OFF"
+    HeadLockBtn.TextColor3 = isHeadLocking and Color3.fromRGB(0, 255, 120) or Color3.fromRGB(255, 60, 60)
+    if isHeadLocking and isLocking then
+        isLocking = false
+        LockBtn.Text = "Player Lock: OFF"
+        LockBtn.TextColor3 = Color3.fromRGB(255, 60, 60)
+    end
+end
+
+local function toggleLock(state)
+    isLocking = state
+    LockBtn.Text = isLocking and "Player Lock: ON" or "Player Lock: OFF"
+    LockBtn.TextColor3 = isLocking and Color3.fromRGB(0, 255, 120) or Color3.fromRGB(255, 60, 60)
+    if isLocking and isHeadLocking then
+        isHeadLocking = false
+        HeadLockBtn.Text = "🎯 Head Lock: OFF"
+        HeadLockBtn.TextColor3 = Color3.fromRGB(255, 60, 60)
+    end
+end
+
+local function toggleFly(state)
+    flyEnabled = state
+    FlyBtn.Text = flyEnabled and "Fly: ON" or "Fly: OFF"
+    FlyBtn.TextColor3 = flyEnabled and Color3.fromRGB(0, 255, 120) or Color3.fromRGB(255, 60, 60)
+
+    local char = LocalPlayer.Character
+    if not char then return end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    local hum = char:FindFirstChildOfClass("Humanoid")
+
+    if flyEnabled and root and hum then
+        local bodyGyro = Instance.new("BodyGyro")
+        bodyGyro.P = 9e4
+        bodyGyro.maxTorque = Vector3.new(9e9, 9e9, 9e9)
+        bodyGyro.cframe = root.CFrame
+        bodyGyro.Parent = root
+
+        local bodyVelocity = Instance.new("BodyVelocity")
+        bodyVelocity.velocity = Vector3.new(0, 0.1, 0)
+        bodyVelocity.maxForce = Vector3.new(9e9, 9e9, 9e9)
+        bodyVelocity.Parent = root
+
+        task.spawn(function()
+            while flyEnabled and char and char:Parent() and root and root:Parent() do
+                bodyGyro.cframe = Camera.CFrame
+                local moveDir = hum.MoveDirection
+                if moveDir.Magnitude > 0 then
+                    bodyVelocity.velocity = Camera.CFrame:VectorToWorldSpace(Vector3.new(moveDir.X, 0, moveDir.Z)) * FLY_SPEED
+                else
+                    bodyVelocity.velocity = Vector3.new(0, 0.1, 0)
+                end
+                task.wait()
+            end
+            if bodyGyro then bodyGyro:Destroy() end
+            if bodyVelocity then bodyVelocity:Destroy() end
+        end)
+    end
+end
+
+UserInputService.JumpRequest:Connect(function()
+    if infJumpEnabled then
+        local char = LocalPlayer.Character
+        if char and char:FindFirstChildOfClass("Humanoid") then
+            char:FindFirstChildOfClass("Humanoid"):ChangeState(Enum.HumanoidStateType.Jumping)
+        end
+    end
+end)
+
+local function toggleInfJump(state)
+    infJumpEnabled = state
+    JumpBtn.Text = infJumpEnabled and "Inf Jump: ON" or "Inf Jump: OFF"
+    JumpBtn.TextColor3 = infJumpEnabled and Color3.fromRGB(0, 255, 120) or Color3.fromRGB(255, 60, 60)
+end
+
+EspBtn.MouseButton1Click:Connect(function() toggleESP(not ESPConfig.Enabled) end)
+FullAIBtn.MouseButton1Click:Connect(function() toggleFullAI(not fullAIEnabled) end)
+AutoShootBtn.MouseButton1Click:Connect(function() toggleAutoShoot(not autoShootEnabled) end)
+HeadLockBtn.MouseButton1Click:Connect(function() toggleHeadLock(not isHeadLocking) end)
+LockBtn.MouseButton1Click:Connect(function() toggleLock(not isLocking) end)
+FlyBtn.MouseButton1Click:Connect(function() toggleFly(not flyEnabled) end)
+JumpBtn.MouseButton1Click:Connect(function() toggleInfJump(not infJumpEnabled) end)
+ChatBtn.MouseButton1Click:Connect(function() ChatFrame.Visible = not ChatFrame.Visible end)
+
+-- === 7. Manual Lock Loop ===
+RunService.RenderStepped:Connect(function()
+    if isHeadLocking then
+        local targetHead = getClosestLivingTarget()
+        if targetHead then
+            local velocity = targetHead.Velocity or Vector3.new(0, 0, 0)
+            local predictedPos = targetHead.Position + (velocity * PREDICTION_TIME)
+            Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, predictedPos), SMOOTHNESS)
+        end
+    elseif isLocking then
+        if currentTargetChar then
+            local hum = currentTargetChar:FindFirstChildOfClass("Humanoid")
+            if not currentTargetChar.Parent or not hum or hum.Health <= 0 or not isVisible(currentTargetChar) then
+                currentTargetChar = nil
+            end
+        end
+
+        local bestDist, bestChar = math.huge, nil
+        local myChar = LocalPlayer.Character
+        local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+
+        if myRoot then
+            for _, p in pairs(Players:GetPlayers()) do
+                if p ~= LocalPlayer and p.Character then
+                    local hum = p.Character:FindFirstChildOfClass("Humanoid")
+                    local root = p.Character:FindFirstChild("HumanoidRootPart")
+                    if hum and hum.Health > 0 and root and isVisible(p.Character) then
+                        local dist = (myRoot.Position - root.Position).Magnitude
+                        if dist < bestDist then
+                            bestDist = dist
+                            bestChar = p.Character
+                        end
+                    end
+                end
+            end
+        end
+        currentTargetChar = bestChar
+
+        if currentTargetChar and currentTargetChar:FindFirstChild("Head") then
+            local head = currentTargetChar.Head
+            local velocity = head.Velocity or Vector3.new(0, 0, 0)
+            local predictedPos = head.Position + (velocity * PREDICTION_TIME)
+            Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, predictedPos), SMOOTHNESS)
+        end
+    end
+end)
+
+-- === 8. AI Chat Companion System ===
+local function addChatMessage(sender, message, color)
+    local msgLabel = Instance.new("TextLabel")
+    msgLabel.Size = UDim2.new(1, -10, 0, 18)
+    msgLabel.BackgroundTransparency = 1
+    msgLabel.Text = string.format("[%s]: %s", sender, message)
+    msgLabel.TextColor3 = color or Color3.fromRGB(220, 220, 220)
+    msgLabel.Font = Enum.Font.SourceSansBold
+    msgLabel.TextSize = 13
+    msgLabel.TextWrapped = true
+    msgLabel.TextXAlignment = Enum.TextXAlignment.Left
+    msgLabel.Parent = ChatScroll
+
+    task.wait(0.02)
+    msgLabel.Size = UDim2.new(1, -10, 0, msgLabel.TextBounds.Y + 4)
+    ChatScroll.CanvasSize = UDim2.new(0, 0, 0, UIListLayout.AbsoluteContentSize.Y + 10)
+    ChatScroll.CanvasPosition = Vector2.new(0, 99999)
+end
+
+local function processAIChat(userText)
+    local cleanText = string.gsub(userText, "^%s*(.-)%s*$", "%1")
+    if cleanText == "" or cleanText == ChatInput.PlaceholderText then return end
+
+    addChatMessage("คุณ", cleanText, Color3.fromRGB(100, 200, 255))
+    ChatInput.Text = ""
+
+    task.spawn(function()
+        task.wait(0.1)
+        local text = string.lower(cleanText)
+
+        if string.find(text, "ยิง") or string.find(text, "fire") or string.find(text, "shoot") then
+            if string.find(text, "ปิด") then
+                toggleAutoShoot(false)
+                addChatMessage("Delta AI", "ปิดระบบ Auto Fire แล้วครับ", Color3.fromRGB(255, 100, 100))
+            else
+                toggleAutoShoot(true)
+                addChatMessage("Delta AI", "เปิดระบบ Auto Fire ยิงให้อัตโนมัติเรียบร้อยครับ!", Color3.fromRGB(0, 255, 150))
+            end
+        else
+            addChatMessage("Delta AI", "รับทราบครับ! AI Autonomous Engine v8.0 กำลังทำงาน (ยิง/ฟัน/รีโหลด อัตโนมัติ)", Color3.fromRGB(200, 200, 200))
+        end
+    end)
+end
+
+SendBtn.MouseButton1Click:Connect(function() processAIChat(ChatInput.Text) end)
+ChatInput.FocusLost:Connect(function(enterPressed) if enterPressed then processAIChat(ChatInput.Text) end end)
+
+addChatMessage("Delta AI", "v8.0 Full Autonomous System พร้อมทำงาน! (Auto Fire, Auto Melee, Auto Reload)", Color3.fromRGB(0, 220, 255))
