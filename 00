@@ -1,0 +1,296 @@
+-- [[ Operation 1 - TP Kill & Stealth Mobile Hub ]] --
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+
+local parentGui = (gethui and gethui()) or CoreGui or LocalPlayer:WaitForChild("PlayerGui")
+
+if parentGui:FindFirstChild("Operation1TPKillHub") then
+    parentGui.Operation1TPKillHub:Destroy()
+end
+
+-- Variables
+local AimbotEnabled = false
+local AimSmoothness = 0.2
+local ESPEnabled = false
+local HitboxEnabled = false
+local HitboxSize = 3
+local NoclipEnabled = false
+local AutoTPKill = false
+
+---------------------------------------------------------
+-- HELPER FUNCTION: ตรวจจับเฉพาะทีมตรงข้าม
+---------------------------------------------------------
+local function IsEnemy(plr)
+    if not plr or plr == LocalPlayer then return false end
+    if LocalPlayer.Team and plr.Team then
+        return LocalPlayer.Team ~= plr.Team
+    end
+    if LocalPlayer.TeamColor and plr.TeamColor then
+        return LocalPlayer.TeamColor ~= plr.TeamColor
+    end
+    return true
+end
+
+-- ค้นหาศัตรูที่ยังมีชีวิต
+local function GetClosestEnemy()
+    local Target = nil
+    local MaxDistance = math.huge
+
+    for _, v in pairs(Players:GetPlayers()) do
+        if IsEnemy(v) and v.Character and v.Character:FindFirstChild("HumanoidRootPart") and v.Character:FindFirstChildOfClass("Humanoid") then
+            if v.Character.Humanoid.Health > 0 then
+                local MyHRP = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                if MyHRP then
+                    local Distance = (v.Character.HumanoidRootPart.Position - MyHRP.Position).Magnitude
+                    if Distance < MaxDistance then
+                        Target = v
+                        MaxDistance = Distance
+                    end
+                end
+            end
+        end
+    end
+    return Target
+end
+
+---------------------------------------------------------
+-- UI SYSTEM (ขนาดเล็ก ไม่บังจอ)
+---------------------------------------------------------
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "Operation1TPKillHub"
+ScreenGui.Parent = parentGui
+ScreenGui.ResetOnSpawn = false
+
+local ToggleBtn = Instance.new("TextButton")
+ToggleBtn.Name = "ToggleBtn"
+ToggleBtn.Parent = ScreenGui
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+ToggleBtn.BorderColor3 = Color3.fromRGB(100, 100, 100)
+ToggleBtn.Position = UDim2.new(0, 10, 0, 10)
+ToggleBtn.Size = UDim2.new(0, 75, 0, 30)
+ToggleBtn.Font = Enum.Font.SourceSansBold
+ToggleBtn.Text = "เมนู"
+ToggleBtn.TextColor3 = Color3.fromRGB(220, 220, 220)
+ToggleBtn.TextSize = 13
+ToggleBtn.Active = true
+ToggleBtn.Draggable = true
+
+local BtnCorner = Instance.new("UICorner")
+BtnCorner.CornerRadius = UDim.new(0, 6)
+BtnCorner.Parent = ToggleBtn
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Parent = ScreenGui
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+MainFrame.BorderColor3 = Color3.fromRGB(60, 60, 60)
+MainFrame.BorderSizePixel = 1
+MainFrame.Position = UDim2.new(0.5, -120, 0.5, -110)
+MainFrame.Size = UDim2.new(0, 240, 0, 220)
+MainFrame.Active = true
+MainFrame.Draggable = true
+
+local Title = Instance.new("TextLabel")
+Title.Parent = MainFrame
+Title.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+Title.Size = UDim2.new(1, 0, 0, 25)
+Title.Font = Enum.Font.SourceSansBold
+Title.Text = "  Operation 1 - TP Kill Hub"
+Title.TextColor3 = Color3.fromRGB(200, 200, 200)
+Title.TextSize = 13
+Title.TextXAlignment = Enum.TextXAlignment.Left
+
+ToggleBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = not MainFrame.Visible
+end)
+
+local Scroll = Instance.new("ScrollingFrame")
+Scroll.Parent = MainFrame
+Scroll.BackgroundTransparency = 1
+Scroll.Position = UDim2.new(0, 5, 0, 30)
+Scroll.Size = UDim2.new(1, -10, 1, -35)
+Scroll.CanvasSize = UDim2.new(0, 0, 0, 280)
+Scroll.ScrollBarThickness = 4
+
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.Parent = Scroll
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+UIListLayout.Padding = UDim.new(0, 4)
+
+local function CreateToggle(name, default, callback)
+    local state = default
+    local btn = Instance.new("TextButton")
+    btn.Parent = Scroll
+    btn.Size = UDim2.new(1, -6, 0, 30)
+    btn.Font = Enum.Font.SourceSans
+    btn.TextSize = 13
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    
+    local function update()
+        btn.BackgroundColor3 = state and Color3.fromRGB(35, 110, 35) or Color3.fromRGB(45, 45, 45)
+        btn.Text = name .. ": " .. (state and "ON" or "OFF")
+    end
+    
+    btn.MouseButton1Click:Connect(function()
+        state = not state
+        update()
+        callback(state)
+    end)
+    
+    update()
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 4)
+    corner.Parent = btn
+end
+
+local function CreateButton(name, callback)
+    local btn = Instance.new("TextButton")
+    btn.Parent = Scroll
+    btn.Size = UDim2.new(1, -6, 0, 30)
+    btn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    btn.Font = Enum.Font.SourceSans
+    btn.Text = name
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.TextSize = 13
+    btn.MouseButton1Click:Connect(callback)
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 4)
+    corner.Parent = btn
+end
+
+---------------------------------------------------------
+-- CORE LOGIC
+---------------------------------------------------------
+local ESPObjects = {}
+
+local function RemoveESP(plr)
+    if ESPObjects[plr] then
+        if ESPObjects[plr].Tracer then ESPObjects[plr].Tracer:Remove() end
+        if ESPObjects[plr].Text then ESPObjects[plr].Text:Remove() end
+        ESPObjects[plr] = nil
+    end
+end
+
+-- Noclip
+RunService.Stepped:Connect(function()
+    if (NoclipEnabled or AutoTPKill) and LocalPlayer.Character then
+        for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+            end
+        end
+    end
+end)
+
+-- Main Render Loop
+RunService.RenderStepped:Connect(function()
+    -- ระบบ Auto TP Kill (วาร์ปเราไปเกาะหลังศัตรูออโต้)
+    if AutoTPKill and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        local targetEnemy = GetClosestEnemy()
+        if targetEnemy and targetEnemy.Character and targetEnemy.Character:FindFirstChild("HumanoidRootPart") then
+            local enemyHRP = targetEnemy.Character.HumanoidRootPart
+            -- วาร์ปไปอยู่ข้างหลังศัตรู ระยะ 3 ปอนด์
+            LocalPlayer.Character.HumanoidRootPart.CFrame = enemyHRP.CFrame * CFrame.new(0, 0, 3)
+            -- หันกล้องไปหาหัวศัตรูอัตโนมัติ
+            if targetEnemy.Character:FindFirstChild("Head") then
+                Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetEnemy.Character.Head.Position)
+            end
+        end
+    end
+
+    -- Smooth Aimbot
+    if AimbotEnabled and not AutoTPKill then
+        local targetEnemy = GetClosestEnemy()
+        if targetEnemy and targetEnemy.Character and targetEnemy.Character:FindFirstChild("Head") then
+            local TargetCFrame = CFrame.new(Camera.CFrame.Position, targetEnemy.Character.Head.Position)
+            Camera.CFrame = Camera.CFrame:Lerp(TargetCFrame, AimSmoothness)
+        end
+    end
+
+    -- Invisible Hitbox
+    if HitboxEnabled then
+        for _, plr in pairs(Players:GetPlayers()) do
+            if IsEnemy(plr) and plr.Character and plr.Character:FindFirstChild("Head") then
+                pcall(function()
+                    plr.Character.Head.Size = Vector3.new(HitboxSize, HitboxSize, HitboxSize)
+                    plr.Character.Head.Transparency = 1
+                    plr.Character.Head.CanCollide = false
+                end)
+            end
+        end
+    end
+
+    -- ESP เส้นบาง
+    if ESPEnabled then
+        for _, plr in pairs(Players:GetPlayers()) do
+            if IsEnemy(plr) then
+                if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") and plr.Character:FindFirstChildOfClass("Humanoid") and plr.Character.Humanoid.Health > 0 then
+                    local hrp = plr.Character.HumanoidRootPart
+                    local head = plr.Character:FindFirstChild("Head") or hrp
+                    
+                    local Vector, OnScreen = Camera:WorldToViewportPoint(hrp.Position)
+                    local HeadVector = Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 1.2, 0))
+
+                    if OnScreen then
+                        if not ESPObjects[plr] then
+                            ESPObjects[plr] = {
+                                Tracer = Drawing.new("Line"),
+                                Text = Drawing.new("Text")
+                            }
+                            ESPObjects[plr].Tracer.Color = Color3.fromRGB(255, 80, 80)
+                            ESPObjects[plr].Tracer.Thickness = 1
+                            ESPObjects[plr].Text.Color = Color3.fromRGB(240, 240, 240)
+                            ESPObjects[plr].Text.Size = 12
+                            ESPObjects[plr].Text.Center = true
+                            ESPObjects[plr].Text.Outline = true
+                        end
+
+                        ESPObjects[plr].Tracer.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+                        ESPObjects[plr].Tracer.To = Vector2.new(Vector.X, Vector.Y)
+                        ESPObjects[plr].Tracer.Visible = true
+
+                        local distance = math.floor((LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and (LocalPlayer.Character.HumanoidRootPart.Position - hrp.Position).Magnitude) or 0)
+                        
+                        ESPObjects[plr].Text.Position = Vector2.new(HeadVector.X, HeadVector.Y)
+                        ESPObjects[plr].Text.Text = string.format("%s [%dm]", plr.Name, distance)
+                        ESPObjects[plr].Text.Visible = true
+                    else
+                        if ESPObjects[plr] then
+                            ESPObjects[plr].Tracer.Visible = false
+                            ESPObjects[plr].Text.Visible = false
+                        end
+                    end
+                else
+                    RemoveESP(plr)
+                end
+            else
+                RemoveESP(plr)
+            end
+        end
+    else
+        for plr, _ in pairs(ESPObjects) do
+            RemoveESP(plr)
+        end
+    end
+end)
+
+Players.PlayerRemoving:Connect(RemoveESP)
+
+---------------------------------------------------------
+-- UI CONTROLS
+---------------------------------------------------------
+CreateToggle("Auto TP Kill (วาร์ปไปหลังศัตรู)", false, function(s) AutoTPKill = s end)
+CreateToggle("Legit Aimbot (ล็อกเป้านุ่ม)", false, function(s) AimbotEnabled = s end)
+CreateToggle("Invisible Hitbox (หัวใหญ่ล่องหน)", false, function(s) HitboxEnabled = s end)
+CreateToggle("ESP ศัตรู (เส้นบาง)", false, function(s) ESPEnabled = s end)
+
+CreateButton("วาร์ปไปหลังศัตรูใกล้สุด (กดครั้งเดียว)", function()
+    local targetEnemy = GetClosestEnemy()
+    if targetEnemy and targetEnemy.Character and targetEnemy.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        LocalPlayer.Character.HumanoidRootPart.CFrame = targetEnemy.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3)
+    end
+end)
