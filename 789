@@ -1,0 +1,313 @@
+-- [[ Operation 1 - GOD MODE ULTRA OP HUB ]] --
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
+local Window = Library.CreateLib("Operation 1 - GOD MODE HUB", "BloodTheme")
+
+-- Services
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+
+-- Variables
+local AimbotEnabled = false
+local AimKey = Enum.UserInputType.MouseButton2
+local AimRadius = 180
+local ShowFOV = false
+local ESPEnabled = false
+
+-- Ultra OP Variables
+local SilentAimEnabled = false
+local HitboxEnabled = false
+local HitboxSize = 2
+local NoclipEnabled = false
+local TriggerbotEnabled = false
+
+---------------------------------------------------------
+-- ระบบปุ่มลอย ย่อ/เปิด UI (Mobile Friendly)
+---------------------------------------------------------
+local ToggleGui = Instance.new("ScreenGui")
+local ToggleButton = Instance.new("TextButton")
+local UICorner = Instance.new("UICorner")
+
+ToggleGui.Name = "DeltaMinimizeGui"
+ToggleGui.Parent = CoreGui
+ToggleGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+ToggleButton.Name = "ToggleButton"
+ToggleButton.Parent = ToggleGui
+ToggleButton.BackgroundColor3 = Color3.fromRGB(180, 0, 0)
+ToggleButton.BorderColor3 = Color3.fromRGB(255, 255, 255)
+ToggleButton.BorderSizePixel = 1
+ToggleButton.Position = UDim2.new(0, 15, 0, 15)
+ToggleButton.Size = UDim2.new(0, 90, 0, 35)
+ToggleButton.Font = Enum.Font.SourceSansBold
+ToggleButton.Text = "เปิด / ย่อ UI"
+ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleButton.TextSize = 15.00
+ToggleButton.Active = true
+ToggleButton.Draggable = true
+
+UICorner.CornerRadius = UDim.new(0, 8)
+UICorner.Parent = ToggleButton
+
+ToggleButton.MouseButton1Click:Connect(function()
+    local kavoUI = CoreGui:FindFirstChild("KavoUI") or CoreGui:FindFirstChildOfClass("ScreenGui")
+    if kavoUI and kavoUI ~= ToggleGui then
+        kavoUI.Enabled = not kavoUI.Enabled
+    end
+end)
+
+---------------------------------------------------------
+-- CORE FUNCTIONS & SILENT AIM HOOK
+---------------------------------------------------------
+local FOVCircle = Drawing.new("Circle")
+FOVCircle.Color = Color3.fromRGB(255, 0, 0)
+FOVCircle.Thickness = 1.5
+FOVCircle.NumSides = 64
+FOVCircle.Radius = AimRadius
+FOVCircle.Filled = false
+FOVCircle.Visible = false
+
+local ESPObjects = {}
+
+local function RemoveESP(plr)
+    if ESPObjects[plr] then
+        if ESPObjects[plr].Tracer then ESPObjects[plr].Tracer:Remove() end
+        if ESPObjects[plr].Text then ESPObjects[plr].Text:Remove() end
+        ESPObjects[plr] = nil
+    end
+end
+
+local function GetEquippedWeapon(character)
+    local tool = character:FindFirstChildOfClass("Tool")
+    return tool and tool.Name or "Hand / None"
+end
+
+local function GetClosestPlayer()
+    local Target = nil
+    local MaxDistance = AimRadius
+
+    for _, v in pairs(Players:GetPlayers()) do
+        if v ~= LocalPlayer and v.Character and v.Character:FindFirstChild("Head") and v.Character:FindFirstChildOfClass("Humanoid") then
+            if v.Character.Humanoid.Health > 0 then
+                local ScreenPos, OnScreen = Camera:WorldToViewportPoint(v.Character.Head.Position)
+                if OnScreen then
+                    local MousePos = UserInputService:GetMouseLocation()
+                    local Distance = (Vector2.new(ScreenPos.X, ScreenPos.Y) - MousePos).Magnitude
+                    if Distance < MaxDistance then
+                        Target = v.Character.Head
+                        MaxDistance = Distance
+                    end
+                end
+            end
+        end
+    end
+    return Target
+end
+
+-- Silent Aim Metatable Hook
+local gmt = getrawmetatable(game)
+setreadonly(gmt, false)
+local oldNamecall = gmt.__namecall
+
+gmt.__namecall = newcclosure(function(self, ...)
+    local method = getnamecallmethod()
+    local args = {...}
+
+    if SilentAimEnabled and not checkcaller() then
+        if method == "FindPartOnRayWithIgnoreList" or method == "FindPartOnRay" or method == "Raycast" then
+            local targetHead = GetClosestPlayer()
+            if targetHead then
+                if method == "Raycast" then
+                    local origin = args[1]
+                    args[2] = (targetHead.Position - origin).Unit * 1000
+                else
+                    local ray = args[1]
+                    if ray then
+                        args[1] = Ray.new(ray.Origin, (targetHead.Position - ray.Origin).Unit * 1000)
+                    end
+                end
+                return oldNamecall(self, unpack(args))
+            end
+        end
+    end
+    return oldNamecall(self, ...)
+end)
+
+-- Noclip Loop
+RunService.Stepped:Connect(function()
+    if NoclipEnabled and LocalPlayer.Character then
+        for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+            end
+        end
+    end
+end)
+
+-- Main Render Loop
+RunService.RenderStepped:Connect(function()
+    FOVCircle.Position = UserInputService:GetMouseLocation()
+    FOVCircle.Radius = AimRadius
+    FOVCircle.Visible = ShowFOV
+
+    -- Standard Aimbot
+    if AimbotEnabled and UserInputService:IsMouseButtonPressed(AimKey) then
+        local TargetHead = GetClosestPlayer()
+        if TargetHead then
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, TargetHead.Position)
+        end
+    end
+
+    -- Hitbox Extender
+    if HitboxEnabled then
+        for _, plr in pairs(Players:GetPlayers()) do
+            if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("Head") then
+                pcall(function()
+                    plr.Character.Head.Size = Vector3.new(HitboxSize, HitboxSize, HitboxSize)
+                    plr.Character.Head.Transparency = 0.6
+                    plr.Character.Head.Color = Color3.fromRGB(255, 0, 0)
+                    plr.Character.Head.Material = Enum.Material.Neon
+                    plr.Character.Head.CanCollide = false
+                end)
+            end
+        end
+    end
+
+    -- Triggerbot
+    if TriggerbotEnabled then
+        local ray = Camera:ViewportPointToRay(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
+        local raycastResult = workspace:Raycast(ray.Origin, ray.Direction * 1000)
+        if raycastResult and raycastResult.Instance then
+            local hitModel = raycastResult.Instance:FindFirstAncestorOfClass("Model")
+            if hitModel and Players:GetPlayerFromCharacter(hitModel) and Players:GetPlayerFromCharacter(hitModel) ~= LocalPlayer then
+                mouse1click()
+            end
+        end
+    end
+
+    -- ESP & Tracer Loop
+    if ESPEnabled then
+        for _, plr in pairs(Players:GetPlayers()) do
+            if plr ~= LocalPlayer then
+                if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") and plr.Character:FindFirstChildOfClass("Humanoid") and plr.Character.Humanoid.Health > 0 then
+                    local hrp = plr.Character.HumanoidRootPart
+                    local head = plr.Character:FindFirstChild("Head") or hrp
+                    
+                    local Vector, OnScreen = Camera:WorldToViewportPoint(hrp.Position)
+                    local HeadVector = Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 1.5, 0))
+
+                    if OnScreen then
+                        if not ESPObjects[plr] then
+                            ESPObjects[plr] = {
+                                Tracer = Drawing.new("Line"),
+                                Text = Drawing.new("Text")
+                            }
+                            ESPObjects[plr].Tracer.Color = Color3.fromRGB(255, 0, 0)
+                            ESPObjects[plr].Tracer.Thickness = 1.5
+                            ESPObjects[plr].Text.Color = Color3.fromRGB(255, 255, 255)
+                            ESPObjects[plr].Text.Size = 14
+                            ESPObjects[plr].Text.Center = true
+                            ESPObjects[plr].Text.Outline = true
+                        end
+
+                        ESPObjects[plr].Tracer.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+                        ESPObjects[plr].Tracer.To = Vector2.new(Vector.X, Vector.Y)
+                        ESPObjects[plr].Tracer.Visible = true
+
+                        local distance = math.floor((LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and (LocalPlayer.Character.HumanoidRootPart.Position - hrp.Position).Magnitude) or 0)
+                        local weaponName = GetEquippedWeapon(plr.Character)
+
+                        ESPObjects[plr].Text.Position = Vector2.new(HeadVector.X, HeadVector.Y)
+                        ESPObjects[plr].Text.Text = string.format("%s | [%dm]\nWeapon: %s", plr.Name, distance, weaponName)
+                        ESPObjects[plr].Text.Visible = true
+                    else
+                        if ESPObjects[plr] then
+                            ESPObjects[plr].Tracer.Visible = false
+                            ESPObjects[plr].Text.Visible = false
+                        end
+                    end
+                else
+                    RemoveESP(plr)
+                end
+            end
+        end
+    else
+        for plr, _ in pairs(ESPObjects) do
+            RemoveESP(plr)
+        end
+    end
+end)
+
+Players.PlayerRemoving:Connect(RemoveESP)
+
+---------------------------------------------------------
+-- UI TABS & SECTIONS
+---------------------------------------------------------
+
+-- TAB 1: GOD MODE COMBAT
+local CombatTab = Window:NewTab("ระบบยิงระดับเทพ (Combat)")
+
+CombatTab:NewSection("--- Silent Aim (Magic Bullet) ---")
+CombatTab:NewSection("Silent Aim"):NewToggle("เปิด Silent Aim (กระสุนเลี้ยวเข้าหัว)", "ยิงไปทางไหนกระสุนก็เข้าหัวศัตรูอัตโนมัติ", function(state)
+    SilentAimEnabled = state
+end)
+
+CombatTab:NewSection("--- Hitbox & Triggerbot ---")
+CombatTab:NewSection("Hitbox Extender"):NewToggle("เปิด Hitbox หัวใหญ่", "ขยายหัวศัตรูให้ยิงเข้าง่ายขึ้น", function(state)
+    HitboxEnabled = state
+end)
+
+CombatTab:NewSection("Hitbox Size"):NewSlider("ขนาดหัวศัตรู", "ปรับขยายขนาดหัว", 15, 2, function(v)
+    HitboxSize = v
+end)
+
+CombatTab:NewSection("Triggerbot"):NewToggle("ยิงให้อัตโนมัติ (Triggerbot)", "เป้าตรงศัตรูแล้วสั่งยิงทันที", function(state)
+    TriggerbotEnabled = state
+end)
+
+CombatTab:NewSection("--- Camera Aimbot & FOV ---")
+CombatTab:NewSection("Camera Aimbot"):NewToggle("เปิด Aimbot ล็อกกล้อง", "กดคลิกขวาเพื่อล็อกเป้า", function(state)
+    AimbotEnabled = state
+end)
+
+CombatTab:NewSection("FOV"):NewToggle("แสดงวงกลม FOV", "แสดงขอบเขตวิถีกระสุน/การล็อก", function(state)
+    ShowFOV = state
+end)
+
+CombatTab:NewSection("FOV Size"):NewSlider("ระยะวงกลม FOV", "ขยายวงกลมการล็อก/กระสุนเลี้ยว", 350, 50, function(v)
+    AimRadius = v
+end)
+
+-- TAB 2: Visuals
+local VisualTab = Window:NewTab("การมองเห็น (Visuals)")
+VisualTab:NewSection("Tracer ESP"):NewToggle("เปิด Tracer & Info ESP", "เส้นลากหาศัตรู + ระยะเมตร + ชื่อปืน", function(state)
+    ESPEnabled = state
+end)
+
+VisualTab:NewSection("FullBright"):NewButton("ลบหมอก / เพิ่มแสงสว่าง", "มองสว่างชัดเจนในที่มืด", function()
+    game:GetService("Lighting").FogEnd = 100000
+    game:GetService("Lighting").GlobalShadows = false
+    game:GetService("Lighting").Brightness = 2
+end)
+
+-- TAB 3: Movement
+local MoveTab = Window:NewTab("ระบบเคลื่อนที่ (Movement)")
+MoveTab:NewSection("Noclip"):NewToggle("เดินทะลุกำแพง (Noclip)", "เดินผ่านสิ่งกีดขวางได้ทุกชนิด", function(state)
+    NoclipEnabled = state
+end)
+
+MoveTab:NewSection("WalkSpeed"):NewSlider("ความเร็วเดิน", "ปรับความเร็วตัวละคร", 200, 16, function(s)
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        LocalPlayer.Character.Humanoid.WalkSpeed = s
+    end
+end)
+
+-- Notification
+game:GetService("StarterGui"):SetCore("SendNotification", {
+    Title = "GOD MODE LOADED!",
+    Text = "เปิดใช้ Silent Aim แล้ว ยิงมั่วๆ กระสุนก็เข้าหัวทันที!",
+    Duration = 5
+})
