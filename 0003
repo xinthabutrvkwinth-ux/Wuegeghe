@@ -1,0 +1,271 @@
+-- [[ โหลด Rayfield UI Library ]] --
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+   Name = "Delta Hub | Fling & Player",
+   LoadingTitle = "กำลังโหลดระบบ...",
+   LoadingSubtitle = "by Delta Executor",
+   ConfigurationSaving = { Enabled = false }
+})
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+
+-- [[ ฟังก์ชัน FlingTarget ]] --
+local function FlingTarget(targetPlayer)
+    if not targetPlayer or targetPlayer == LocalPlayer then return end
+    
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    local targetChar = targetPlayer.Character
+    local targetHRP = targetChar and targetChar:FindFirstChild("HumanoidRootPart")
+    local targetHum = targetChar and targetChar:FindFirstChildOfClass("Humanoid")
+
+    if hrp and targetHRP and targetHum and targetHum.Health > 0 then
+        local oldCFrame = hrp.CFrame 
+
+        local characterParts = {}
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then
+                table.insert(characterParts, part)
+            end
+        end
+
+        local startTime = tick()
+        local connection
+        
+        connection = RunService.Heartbeat:Connect(function()
+            if targetHRP and targetHRP.Parent and (tick() - startTime < 1.2) then
+                for _, part in ipairs(characterParts) do
+                    part.CanCollide = false
+                end
+                
+                hrp.CFrame = targetHRP.CFrame
+                hrp.AssemblyAngularVelocity = Vector3.new(0, 999999, 0)
+            else
+                if connection then connection:Disconnect() end
+            end
+        end)
+
+        task.wait(1.2)
+
+        -- ล้างแรงเฉื่อย
+        for _, part in ipairs(characterParts) do
+            part.AssemblyLinearVelocity = Vector3.zero
+            part.AssemblyAngularVelocity = Vector3.zero
+            part.Velocity = Vector3.zero
+            part.RotVelocity = Vector3.zero
+            part.CanCollide = true
+        end
+
+        -- วาร์ปกลับตำแหน่งเดิม
+        hrp.CFrame = oldCFrame
+        RunService.RenderStepped:Wait()
+        hrp.CFrame = oldCFrame
+        
+        hrp.AssemblyLinearVelocity = Vector3.zero
+        hrp.AssemblyAngularVelocity = Vector3.zero
+        
+        Rayfield:Notify({
+           Title = "สำเร็จ!",
+           Content = "Fling ใส่ " .. targetPlayer.DisplayName .. " เรียบร้อยแล้ว",
+           Duration = 3
+        })
+    end
+end
+
+-- [[ ฟังก์ชันหาคนใกล้สุด ]] --
+local function GetClosestPlayer()
+    local closestPlayer = nil
+    local shortestDistance = math.huge
+    local myHRP = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+
+    if myHRP then
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                local targetHRP = player.Character.HumanoidRootPart
+                local targetHum = player.Character:FindFirstChildOfClass("Humanoid")
+                
+                if targetHum and targetHum.Health > 0 then
+                    local distance = (myHRP.Position - targetHRP.Position).Magnitude
+                    if distance < shortestDistance then
+                        shortestDistance = distance
+                        closestPlayer = player
+                    end
+                end
+            end
+        end
+    end
+    return closestPlayer
+end
+
+-- ================================================= --
+-- [[ TAB 1: ระบบ Fling ]] --
+-- ================================================= --
+local FlingTab = Window:CreateTab("ระบบ Fling", 4483345998)
+local TargetName = ""
+
+FlingTab:CreateInput({
+   Name = "พิมพ์ชื่อเป้าหมาย",
+   PlaceholderText = "ชื่อผู้เล่น (Username/Display)",
+   RemoveTextAfterFocusLost = false,
+   Callback = function(Text)
+      TargetName = Text
+   end,
+})
+
+FlingTab:CreateButton({
+   Name = "Fling ผู้เล่นที่ระบุชื่อ",
+   Callback = function()
+      if TargetName ~= "" then
+          local found = false
+          for _, player in ipairs(Players:GetPlayers()) do
+              if string.find(player.Name:lower(), TargetName:lower()) or string.find(player.DisplayName:lower(), TargetName:lower()) then
+                  found = true
+                  FlingTarget(player)
+                  break
+              end
+          end
+          if not found then
+              Rayfield:Notify({Title = "ข้อผิดพลาด", Content = "ไม่พบผู้เล่นชื่อนี้ในเซิร์ฟเวอร์", Duration = 3})
+          end
+      end
+   end,
+})
+
+FlingTab:CreateButton({
+   Name = "Fling คนที่อยู่ใกล้ที่สุด (Closest Player)",
+   Callback = function()
+      local target = GetClosestPlayer()
+      if target then
+          FlingTarget(target)
+      else
+          Rayfield:Notify({Title = "ข้อผิดพลาด", Content = "ไม่พบผู้เล่นอื่นในระยะใกล้", Duration = 3})
+      end
+   end,
+})
+
+-- ================================================= --
+-- [[ TAB 2: ปรับแต่งตัวละคร (WalkSpeed & JumpPower) ]] --
+-- ================================================= --
+local PlayerTab = Window:CreateTab("ปรับแต่งตัวละคร", 4483345998)
+
+local currentWalkSpeed = 16
+local currentJumpPower = 50
+
+PlayerTab:CreateSlider({
+   Name = "ความเร็วการเดิน (WalkSpeed)",
+   Range = {16, 500},
+   Increment = 1,
+   Suffix = "Speed",
+   CurrentValue = 16,
+   Flag = "WalkSpeedSlider",
+   Callback = function(Value)
+      currentWalkSpeed = Value
+      if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+         LocalPlayer.Character:FindFirstChildOfClass("Humanoid").WalkSpeed = Value
+      end
+   end,
+})
+
+PlayerTab:CreateSlider({
+   Name = "พลังการกระโดด (JumpPower)",
+   Range = {50, 500},
+   Increment = 1,
+   Suffix = "Power",
+   CurrentValue = 50,
+   Flag = "JumpPowerSlider",
+   Callback = function(Value)
+      currentJumpPower = Value
+      if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+         local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+         hum.UseJumpPower = true
+         hum.JumpPower = Value
+      end
+   end,
+})
+
+PlayerTab:CreateButton({
+   Name = "รีเซ็ตกลับเป็นค่าปกติ (16 / 50)",
+   Callback = function()
+      currentWalkSpeed = 16
+      currentJumpPower = 50
+      if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+         local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+         hum.WalkSpeed = 16
+         hum.UseJumpPower = true
+         hum.JumpPower = 50
+         Rayfield:Notify({Title = "สำเร็จ", Content = "รีเซ็ตค่ากลับเป็นปกติแล้ว", Duration = 3})
+      end
+   end,
+})
+
+-- ================================================= --
+-- [[ TAB 3: โหมดผี (Ghost Mode / Noclip + Invisible) ]] --
+-- ================================================= --
+local GhostTab = Window:CreateTab("โหมดผี", 4483345998)
+
+local _G_GhostMode = false
+
+GhostTab:CreateToggle({
+   Name = "เปิด/ปิด โหมดผี (เดินทะลุกำแพง + ตัวโปร่งใส)",
+   CurrentValue = false,
+   Flag = "GhostModeToggle",
+   Callback = function(Value)
+      _G_GhostMode = Value
+      
+      local char = LocalPlayer.Character
+      if not char then return end
+      
+      for _, part in ipairs(char:GetDescendants()) do
+         if part:IsA("BasePart") then
+            if _G_GhostMode then
+               part.CanCollide = false
+               if part.Name ~= "HumanoidRootPart" then
+                  part.Transparency = 0.7 -- ทำให้โปร่งใสเหมือนผี
+               end
+            else
+               part.CanCollide = true
+               if part.Name ~= "HumanoidRootPart" then
+                  part.Transparency = 0 -- กลับมาทึบแสงปกติ
+               else
+                  part.Transparency = 1 -- HRP ปกติจะโปร่งใส 1 อยู่แล้ว
+               end
+            end
+         end
+      end
+      
+      if _G_GhostMode then
+         Rayfield:Notify({Title = "โหมดผี", Content = "เปิดใช้งานโหมดผีแล้ว!", Duration = 2})
+      else
+         Rayfield:Notify({Title = "โหมดผี", Content = "ปิดใช้งานโหมดผีแล้ว", Duration = 2})
+      end
+   end,
+})
+
+-- ลูปคอยล็อกสถานะเดินทะลุกำแพง (กันหลุดเวลาเดินชนสิ่งของ)
+RunService.Stepped:Connect(function()
+   if _G_GhostMode then
+      local char = LocalPlayer.Character
+      if char then
+         for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then
+               part.CanCollide = false
+            end
+         end
+      end
+   end
+   
+   -- รักษาค่าความเร็วและความสูงกระโดด
+   if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+      local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+      if currentWalkSpeed ~= 16 and hum.WalkSpeed ~= currentWalkSpeed then
+         hum.WalkSpeed = currentWalkSpeed
+      end
+      if currentJumpPower ~= 50 and hum.JumpPower ~= currentJumpPower then
+         hum.UseJumpPower = true
+         hum.JumpPower = currentJumpPower
+      end
+   end
+end)
