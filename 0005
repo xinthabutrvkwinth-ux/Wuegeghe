@@ -1,1 +1,611 @@
+-- [[ โหลด Rayfield UI Library ]] --
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+   Name = "Delta Hub | MM2 & Player",
+   LoadingTitle = "กำลังโหลดระบบ...",
+   LoadingSubtitle = "by Delta Executor",
+   ConfigurationSaving = { Enabled = false }
+})
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Lighting = game:GetService("Lighting")
+local LocalPlayer = Players.LocalPlayer
+
+-- ================================================= --
+-- [[ ตัวแปรและฟังก์ชันระบบ MM2 ]] --
+-- ================================================= --
+local ESP_Enabled = false
+local AutoFlingMurdererEnabled = false
+local AutoKillSheriffEnabled = false
+local HitboxEnabled = false
+local HitboxSizeValue = 15
+local InfiniteJumpEnabled = false
+local FullbrightEnabled = false
+local AutoGrabGunEnabled = false
+
+local function GetPlayerRole(player)
+    if not player or not player.Character then return "Innocent" end
+    
+    local backpack = player:FindFirstChild("Backpack")
+    local char = player.Character
+    
+    local hasKnife = (backpack and (backpack:FindFirstChild("Knife") or backpack:FindFirstChild("KnifeServer"))) or 
+                     (char and (char:FindFirstChild("Knife") or char:FindFirstChild("KnifeServer")))
+    
+    local hasGun = (backpack and (backpack:FindFirstChild("Gun") or backpack:FindFirstChild("Revolver") or backpack:FindFirstChild("GunServer"))) or 
+                   (char and (char:FindFirstChild("Gun") or char:FindFirstChild("Revolver") or char:FindFirstChild("GunServer")))
+    
+    if hasKnife then
+        return "Murderer"
+    elseif hasGun then
+        return "Sheriff"
+    else
+        return "Innocent"
+    end
+end
+
+local function IsLocalMurderer()
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    local char = LocalPlayer.Character
+    local hasKnife = (backpack and (backpack:FindFirstChild("Knife") or backpack:FindFirstChild("KnifeServer"))) or 
+                     (char and (char:FindFirstChild("Knife") or char:FindFirstChild("KnifeServer")))
+    return hasKnife ~= nil
+end
+
+local function ClearAllESP()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player.Character and player.Character:FindFirstChild("MM2_ESP") then
+            player.Character.MM2_ESP:Destroy()
+        end
+    end
+    for _, item in ipairs(workspace:GetDescendants()) do
+        if item:FindFirstChild("MM2_GunESP") then
+            item.MM2_GunESP:Destroy()
+        end
+    end
+end
+
+local function UpdateESP()
+    if not ESP_Enabled then 
+        ClearAllESP()
+        return 
+    end
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local char = player.Character
+            local highlight = char:FindFirstChild("MM2_ESP")
+            
+            if not highlight then
+                highlight = Instance.new("Highlight")
+                highlight.Name = "MM2_ESP"
+                highlight.Parent = char
+            end
+            
+            local role = GetPlayerRole(player)
+            if role == "Murderer" then
+                highlight.FillColor = Color3.fromRGB(255, 0, 0)
+                highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+            elseif role == "Sheriff" then
+                highlight.FillColor = Color3.fromRGB(0, 150, 255)
+                highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+            else
+                highlight.FillColor = Color3.fromRGB(0, 255, 0)
+                highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+            end
+            
+            highlight.FillTransparency = 0.4
+            highlight.OutlineTransparency = 0
+        end
+    end
+
+    for _, item in ipairs(workspace:GetDescendants()) do
+        if (item:IsA("Tool") or item:IsA("Model")) and (item.Name == "GunDrop" or item.Name == "Gun") and not item:IsDescendantOf(Players) then
+            local highlight = item:FindFirstChild("MM2_GunESP")
+            if not highlight then
+                highlight = Instance.new("Highlight")
+                highlight.Name = "MM2_GunESP"
+                highlight.FillColor = Color3.fromRGB(255, 220, 0)
+                highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+                highlight.FillTransparency = 0.2
+                highlight.OutlineTransparency = 0
+                highlight.Parent = item
+            end
+        end
+    end
+end
+
+-- ================================================= --
+-- [[ ฟังก์ชัน Fling Target ]] --
+-- ================================================= --
+local function FlingTarget(targetPlayer)
+    if not targetPlayer or targetPlayer == LocalPlayer then return end
+    
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    local targetChar = targetPlayer.Character
+    local targetHRP = targetChar and targetChar:FindFirstChild("HumanoidRootPart")
+    local targetHum = targetChar and targetChar:FindFirstChildOfClass("Humanoid")
+
+    if hrp and targetHRP and targetHum and targetHum.Health > 0 then
+        local oldCFrame = hrp.CFrame 
+
+        local characterParts = {}
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then
+                table.insert(characterParts, part)
+            end
+        end
+
+        local startTime = tick()
+        local connection
+        
+        connection = RunService.Heartbeat:Connect(function()
+            if targetHRP and targetHRP.Parent and (tick() - startTime < 1.2) then
+                for _, part in ipairs(characterParts) do
+                    part.CanCollide = false
+                end
+                
+                hrp.CFrame = targetHRP.CFrame
+                hrp.AssemblyAngularVelocity = Vector3.new(0, 999999, 0)
+            else
+                if connection then connection:Disconnect() end
+            end
+        end)
+
+        task.wait(1.2)
+
+        for _, part in ipairs(characterParts) do
+            part.AssemblyLinearVelocity = Vector3.zero
+            part.AssemblyAngularVelocity = Vector3.zero
+            part.Velocity = Vector3.zero
+            part.RotVelocity = Vector3.zero
+            part.CanCollide = true
+        end
+
+        hrp.CFrame = oldCFrame
+        RunService.RenderStepped:Wait()
+        hrp.CFrame = oldCFrame
+        
+        hrp.AssemblyLinearVelocity = Vector3.zero
+        hrp.AssemblyAngularVelocity = Vector3.zero
+        
+        Rayfield:Notify({
+           Title = "สำเร็จ!",
+           Content = "Fling ใส่ " .. targetPlayer.DisplayName .. " เรียบร้อยแล้ว",
+           Duration = 3
+        })
+    end
+end
+
+local function TeleportToGun()
+    local myHRP = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not myHRP then return end
+
+    local gunDrop = nil
+    for _, item in ipairs(workspace:GetDescendants()) do
+        if (item:IsA("Tool") or item:IsA("Model")) and (item.Name == "GunDrop" or item.Name == "Gun") and not item:IsDescendantOf(Players) then
+            gunDrop = item
+            break
+        end
+    end
+
+    if gunDrop then
+        local targetPart = gunDrop:FindFirstChild("Handle") or gunDrop:FindFirstChildWhichIsA("BasePart")
+        if targetPart then
+            myHRP.CFrame = targetPart.CFrame + Vector3.new(0, 3, 0)
+            Rayfield:Notify({Title = "สำเร็จ", Content = "วาร์ปไปเก็บปืนเรียบร้อยแล้ว!", Duration = 3})
+        end
+    else
+        Rayfield:Notify({Title = "ไม่พบปืน", Content = "ยังไม่มีปืนตกในแผนที่ตอนนี้", Duration = 3})
+    end
+end
+
+local function TeleportToMurderer()
+    local murdererPlayer = nil
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and GetPlayerRole(player) == "Murderer" then
+            murdererPlayer = player
+            break
+        end
+    end
+
+    local myHRP = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not myHRP then return end
+
+    if murdererPlayer and murdererPlayer.Character and murdererPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        myHRP.CFrame = murdererPlayer.Character.HumanoidRootPart.CFrame + Vector3.new(0, 3, 0)
+        Rayfield:Notify({Title = "สำเร็จ", Content = "วาร์ปไปหาฆาตกรแล้ว!", Duration = 3})
+    else
+        Rayfield:Notify({Title = "ไม่พบฆาตกร", Content = "ยังไม่พบตัวฆาตกรในแมพ", Duration = 3})
+    end
+end
+
+local function FlingMurderer()
+    local murdererPlayer = nil
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and GetPlayerRole(player) == "Murderer" then
+            murdererPlayer = player
+            break
+        end
+    end
+    if murdererPlayer then
+        FlingTarget(murdererPlayer)
+    else
+        Rayfield:Notify({Title = "ไม่พบฆาตกร", Content = "ยังไม่พบตัวฆาตกร", Duration = 3})
+    end
+end
+
+local function GetClosestPlayer()
+    local closestPlayer = nil
+    local shortestDistance = math.huge
+    local myHRP = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+
+    if myHRP then
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                local targetHRP = player.Character.HumanoidRootPart
+                local targetHum = player.Character:FindFirstChildOfClass("Humanoid")
+                
+                if targetHum and targetHum.Health > 0 then
+                    local distance = (myHRP.Position - targetHRP.Position).Magnitude
+                    if distance < shortestDistance then
+                        shortestDistance = distance
+                        closestPlayer = player
+                    end
+                end
+            end
+        end
+    end
+    return closestPlayer
+end
+
+-- ================================================= --
+-- [[ ลูปทำงานเบื้องหลัง (Background Task) ]] --
+-- ================================================= --
+task.spawn(function()
+    while true do
+        pcall(UpdateESP)
+        
+        -- Auto Fling ฆาตกร
+        if AutoFlingMurdererEnabled then
+            pcall(function()
+                for _, player in ipairs(Players:GetPlayers()) do
+                    if player ~= LocalPlayer and GetPlayerRole(player) == "Murderer" then
+                        local targetHum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+                        if targetHum and targetHum.Health > 0 then
+                            FlingTarget(player)
+                            task.wait(4)
+                        end
+                    end
+                end
+            end)
+        end
+        
+        -- Auto Kill นายอำเภอ/ผู้เล่น (เมื่อเราเป็นฆาตกร)
+        if AutoKillSheriffEnabled and IsLocalMurderer() then
+            pcall(function()
+                local myHRP = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                if myHRP then
+                    local targetPlayer = nil
+                    for _, player in ipairs(Players:GetPlayers()) do
+                        if player ~= LocalPlayer and GetPlayerRole(player) == "Sheriff" then
+                            local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+                            if hum and hum.Health > 0 then
+                                targetPlayer = player
+                                break
+                            end
+                        end
+                    end
+                    if not targetPlayer then
+                        targetPlayer = GetClosestPlayer()
+                    end
+                    
+                    if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                        myHRP.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame + Vector3.new(0, 0, 2)
+                        
+                        local char = LocalPlayer.Character
+                        local knife = char and (char:FindFirstChild("Knife") or char:FindFirstChild("KnifeServer"))
+                        if not knife then
+                            local backpack = LocalPlayer:FindFirstChild("Backpack")
+                            local bpKnife = backpack and (backpack:FindFirstChild("Knife") or backpack:FindFirstChild("KnifeServer"))
+                            if bpKnife and char and char:FindFirstChildOfClass("Humanoid") then
+                                char:FindFirstChildOfClass("Humanoid"):EquipTool(bpKnife)
+                            end
+                        else
+                            knife:Activate()
+                        end
+                    end
+                end
+            end)
+            task.wait(0.3)
+        end
+
+        -- Auto Grab Gun (ออโต้เก็บปืนทันทีเมื่อปืนตก)
+        if AutoGrabGunEnabled then
+            pcall(function()
+                local myHRP = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                if myHRP then
+                    local backpack = LocalPlayer:FindFirstChild("Backpack")
+                    local char = LocalPlayer.Character
+                    local hasGun = (backpack and (backpack:FindFirstChild("Gun") or backpack:FindFirstChild("Revolver") or backpack:FindFirstChild("GunServer"))) or 
+                                   (char and (char:FindFirstChild("Gun") or char:FindFirstChild("Revolver") or char:FindFirstChild("GunServer")))
+                    
+                    if not hasGun then
+                        local gunDrop = nil
+                        for _, item in ipairs(workspace:GetDescendants()) do
+                            if (item:IsA("Tool") or item:IsA("Model")) and (item.Name == "GunDrop" or item.Name == "Gun") and not item:IsDescendantOf(Players) then
+                                gunDrop = item
+                                break
+                            end
+                        end
+                        if gunDrop then
+                            local targetPart = gunDrop:FindFirstChild("Handle") or gunDrop:FindFirstChildWhichIsA("BasePart")
+                            if targetPart then
+                                myHRP.CFrame = targetPart.CFrame + Vector3.new(0, 2, 0)
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+        
+        task.wait(0.5)
+    end
+end)
+
+-- Hitbox Expander & Fullbright Loop
+RunService.RenderStepped:Connect(function()
+    if HitboxEnabled then
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character then
+                local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+                local hum = player.Character:FindFirstChildOfClass("Humanoid")
+                if hrp and hum and hum.Health > 0 then
+                    hrp.Size = Vector3.new(HitboxSizeValue, HitboxSizeValue, HitboxSizeValue)
+                    hrp.Transparency = 0.6
+                    hrp.CanCollide = false
+                end
+            end
+        end
+    else
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character then
+                local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+                if hrp and hrp.Size ~= Vector3.new(2, 2, 1) then
+                    hrp.Size = Vector3.new(2, 2, 1)
+                    hrp.Transparency = 1
+                    hrp.CanCollide = false
+                end
+            end
+        end
+    end
+
+    -- Fullbright Logic
+    if FullbrightEnabled then
+        Lighting.Brightness = 2
+        Lighting.ClockTime = 14
+        Lighting.FogEnd = 100000
+        Lighting.GlobalShadows = false
+        Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
+    end
+end)
+
+-- ระบบกระโดดไม่จำกัด (Infinite Jump)
+UserInputService.JumpRequest:Connect(function()
+    if InfiniteJumpEnabled then
+        local char = LocalPlayer.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
+    end
+end)
+
+-- ================================================= --
+-- [[ TAB 1: ระบบ MM2 ESP & วาร์ป & ฆาตกรออโต้ ]] --
+-- ================================================= --
+local ESPTab = Window:CreateTab("ESP & ฆาตกรระบบ", 4483345998)
+
+ESPTab:CreateToggle({
+   Name = "เปิด/ปิด ระบบมองทะลุ (Role ESP)",
+   CurrentValue = false,
+   Flag = "MM2ESPToggle",
+   Callback = function(Value)
+      ESP_Enabled = Value
+      if not Value then ClearAllESP() end
+   end,
+})
+
+ESPTab:CreateToggle({
+   Name = "🔪 เปิด/ปิด ออโต้ฆ่านายอำเภอ (เมื่อเราเป็นฆาตกร)",
+   CurrentValue = false,
+   Flag = "AutoKillSheriffToggle",
+   Callback = function(Value)
+      AutoKillSheriffEnabled = Value
+      if Value then
+         Rayfield:Notify({Title = "ระบบฆาตกร", Content = "เปิด Auto Kill นายอำเภอแล้ว (ทำงานเมื่อถือมีด)", Duration = 3})
+      end
+   end,
+})
+
+ESPTab:CreateToggle({
+   Name = "⚠️ เปิด/ปิด ออโต้ Fling ฆาตกร (เมื่อเราเป็นคนธรรมดา)",
+   CurrentValue = false,
+   Flag = "AutoFlingMurdererToggle",
+   Callback = function(Value)
+      AutoFlingMurdererEnabled = Value
+   end,
+})
+
+ESPTab:CreateToggle({
+   Name = "🔫 เปิด/ปิด ออโต้เก็บปืนทันที (Auto-Grab Gun)",
+   CurrentValue = false,
+   Flag = "AutoGrabGunToggle",
+   Callback = function(Value)
+      AutoGrabGunEnabled = Value
+      if Value then
+         Rayfield:Notify({Title = "ระบบเก็บปืน", Content = "เปิด Auto-Grab Gun แล้ว (วาร์ปเก็บปืนออโต้)", Duration = 2})
+      end
+   end,
+})
+
+ESPTab:CreateButton({
+   Name = "🎯 วาร์ปไปหาฆาตกรทันที",
+   Callback = function() TeleportToMurderer() end,
+})
+
+ESPTab:CreateButton({
+   Name = "🌀 Fling ใส่ฆาตกรทันที",
+   Callback = function() FlingMurderer() end,
+})
+
+ESPTab:CreateButton({
+   Name = "⚡ วาร์ปไปเก็บปืนทันที",
+   Callback = function() TeleportToGun() end,
+})
+
+-- ================================================= --
+-- [[ TAB 2: ระบบเพิ่ม Hitbox ]] --
+-- ================================================= --
+local HitboxTab = Window:CreateTab("ระบบ Hitbox", 4483345998)
+
+HitboxTab:CreateToggle({
+   Name = "เปิด/ปิด ขยาย Hitbox ผู้เล่นอื่น",
+   CurrentValue = false,
+   Flag = "HitboxToggle",
+   Callback = function(Value)
+      HitboxEnabled = Value
+      if Value then
+         Rayfield:Notify({Title = "Hitbox", Content = "เปิดใช้งานขยาย Hitbox แล้ว", Duration = 2})
+      else
+         Rayfield:Notify({Title = "Hitbox", Content = "ปิดใช้งาน Hitbox แล้ว", Duration = 2})
+      end
+   end,
+})
+
+HitboxTab:CreateSlider({
+   Name = "ขนาด Hitbox (ความกว้าง/สูง)",
+   Range = {2, 30},
+   Increment = 1,
+   Suffix = "Studs",
+   CurrentValue = 15,
+   Flag = "HitboxSizeSlider",
+   Callback = function(Value)
+      HitboxSizeValue = Value
+   end,
+})
+
+HitboxTab:CreateParagraph({
+   Title = "คำแนะนำการตั้งค่า",
+   Content = "• เมื่อเปิด Hitbox ตัวละครคนอื่นจะขยายใหญ่ขึ้น ทำให้ฟันโดนง่ายขึ้น (เหมาะสำหรับเวลาเป็นฆาตกรหรือสู้ระยะประชิด)\n• เปิด 'ออโต้ฆ่านายอำเภอ' ระบบจะจัดการพุ่งไปฟันให้เองทันทีเมื่อเราเป็นฆาตกร"
+})
+
+-- ================================================= --
+-- [[ TAB 3: ระบบ Fling ทั่วไป ]] --
+-- ================================================= --
+local FlingTab = Window:CreateTab("ระบบ Fling", 4483345998)
+local TargetName = ""
+
+FlingTab:CreateInput({
+   Name = "พิมพ์ชื่อเป้าหมาย",
+   PlaceholderText = "ชื่อผู้เล่น",
+   RemoveTextAfterFocusLost = false,
+   Callback = function(Text) TargetName = Text end,
+})
+
+FlingTab:CreateButton({
+   Name = "Fling ผู้เล่นที่ระบุชื่อ",
+   Callback = function()
+      if TargetName ~= "" then
+          for _, player in ipairs(Players:GetPlayers()) do
+              if string.find(player.Name:lower(), TargetName:lower()) or string.find(player.DisplayName:lower(), TargetName:lower()) then
+                  FlingTarget(player)
+                  break
+              end
+          end
+      end
+   end,
+})
+
+FlingTab:CreateButton({
+   Name = "Fling คนใกล้สุด",
+   Callback = function()
+      local target = GetClosestPlayer()
+      if target then FlingTarget(target) end
+   end,
+})
+
+-- ================================================= --
+-- [[ TAB 4: ปรับแต่งตัวละคร, โหมดผี & ระบบช่วยเล่น ]] --
+-- ================================================= --
+local PlayerTab = Window:CreateTab("ตัวละคร & โหมดผี", 4483345998)
+
+local currentWalkSpeed = 16
+local _G_GhostMode = false
+
+PlayerTab:CreateSlider({
+   Name = "ความเร็วเดิน (WalkSpeed)",
+   Range = {16, 300},
+   Increment = 1,
+   Suffix = "Speed",
+   CurrentValue = 16,
+   Callback = function(Value)
+      currentWalkSpeed = Value
+      if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+         LocalPlayer.Character:FindFirstChildOfClass("Humanoid").WalkSpeed = Value
+      end
+   end,
+})
+
+PlayerTab:CreateToggle({
+   Name = "💡 เปิด/ปิด แสงสว่างสูงสุด (Fullbright)",
+   CurrentValue = false,
+   Callback = function(Value)
+      FullbrightEnabled = Value
+      if Value then
+         Rayfield:Notify({Title = "Fullbright", Content = "เปิดแสงสว่างสูงสุดแล้ว (มองเห็นชัดเจนในที่มืด)", Duration = 2})
+      else
+         Rayfield:Notify({Title = "Fullbright", Content = "ปิดแสงสว่างสูงสุดแล้ว", Duration = 2})
+      end
+   end,
+})
+
+PlayerTab:CreateToggle({
+   Name = "เปิด/ปิด กระโดดไม่จำกัด (Infinite Jump)",
+   CurrentValue = false,
+   Callback = function(Value)
+      InfiniteJumpEnabled = Value
+      if Value then
+         Rayfield:Notify({Title = "Infinite Jump", Content = "เปิดใช้งานกระโดดไม่จำกัดแล้ว!", Duration = 2})
+      else
+         Rayfield:Notify({Title = "Infinite Jump", Content = "ปิดใช้งานกระโดดไม่จำกัดแล้ว", Duration = 2})
+      end
+   end,
+})
+
+PlayerTab:CreateToggle({
+   Name = "เปิด/ปิด โหมดผี (เดินทะลุกำแพง)",
+   CurrentValue = false,
+   Callback = function(Value)
+      _G_GhostMode = Value
+   end,
+})
+
+RunService.Stepped:Connect(function()
+   if _G_GhostMode and LocalPlayer.Character then
+      for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
+         if part:IsA("BasePart") then part.CanCollide = false end
+      end
+   end
+   if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+      local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+      if currentWalkSpeed ~= 16 and hum.WalkSpeed ~= currentWalkSpeed then
+         hum.WalkSpeed = currentWalkSpeed
+      end
+   end
+end)
 
