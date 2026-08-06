@@ -1,0 +1,140 @@
+-- [[ โหลด UI Library ]] --
+local OrionLib = loadstring(game:HttpGet(('https://raw.githubusercontent.com/shlexware/Orion/main/source')))()
+local Window = OrionLib:MakeWindow({Name = "Delta Fling Hub", HidePremium = false, SaveConfig = false, IntroText = "Fling Script"})
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+
+-- [[ ฟังก์ชัน FlingTarget (เคลียร์แรงเฉื่อย 100%) ]] --
+local function FlingTarget(targetPlayer)
+    if not targetPlayer or targetPlayer == LocalPlayer then return end
+    
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    local targetChar = targetPlayer.Character
+    local targetHRP = targetChar and targetChar:FindFirstChild("HumanoidRootPart")
+    local targetHum = targetChar and targetChar:FindFirstChildOfClass("Humanoid")
+
+    if hrp and targetHRP and targetHum and targetHum.Health > 0 then
+        local oldCFrame = hrp.CFrame 
+
+        local characterParts = {}
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then
+                table.insert(characterParts, part)
+            end
+        end
+
+        local startTime = tick()
+        local connection
+        
+        connection = RunService.Heartbeat:Connect(function()
+            if targetHRP and targetHRP.Parent and (tick() - startTime < 1.2) then
+                for _, part in ipairs(characterParts) do
+                    part.CanCollide = false
+                end
+                
+                hrp.CFrame = targetHRP.CFrame
+                hrp.AssemblyAngularVelocity = Vector3.new(0, 999999, 0)
+            else
+                connection:Disconnect()
+            end
+        end)
+
+        task.wait(1.2)
+
+        -- เคลียร์ความเร็วสะสมทุกชิ้นส่วน
+        for _, part in ipairs(characterParts) do
+            part.AssemblyLinearVelocity = Vector3.zero
+            part.AssemblyAngularVelocity = Vector3.zero
+            part.Velocity = Vector3.zero
+            part.RotVelocity = Vector3.zero
+        end
+
+        -- วาร์ปกลับจุดเดิม
+        hrp.CFrame = oldCFrame
+        
+        for _, part in ipairs(characterParts) do
+            part.CanCollide = true
+        end
+
+        RunService.RenderStepped:Wait()
+        hrp.CFrame = oldCFrame
+        
+        hrp.AssemblyLinearVelocity = Vector3.zero
+        hrp.AssemblyAngularVelocity = Vector3.zero
+    end
+end
+
+-- [[ ฟังก์ชันค้นหาผู้เล่นที่อยู่ใกล้ที่สุด ]] --
+local function GetClosestPlayer()
+    local closestPlayer = nil
+    local shortestDistance = math.huge
+    local myHRP = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+
+    if myHRP then
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                local targetHRP = player.Character.HumanoidRootPart
+                local targetHum = player.Character:FindFirstChildOfClass("Humanoid")
+                
+                if targetHum and targetHum.Health > 0 then
+                    local distance = (myHRP.Position - targetHRP.Position).Magnitude
+                    if distance < shortestDistance then
+                        shortestDistance = distance
+                        closestPlayer = player
+                    end
+                end
+            end
+        end
+    end
+    return closestPlayer
+end
+
+-- [[ สร้างหน้าต่าง UI ]] --
+local MainTab = Window:MakeTab({
+    Name = "ระบบ Fling",
+    Icon = "rbxassetid://4483345998",
+    PremiumOnly = false
+})
+
+local TargetName = ""
+
+-- ช่องพิมพ์ชื่อผู้เล่น
+MainTab:AddTextbox({
+    Name = "ชื่อผู้เล่นเป้าหมาย (Display Name หรือ Username)",
+    Default = "",
+    TextDisappear = false,
+    Callback = function(Value)
+        TargetName = Value
+    end      
+})
+
+-- ปุ่มกด Fling ผู้เล่นตามชื่อ
+MainTab:AddButton({
+    Name = "Fling ผู้เล่นระบุชื่อ",
+    Callback = function()
+        if TargetName ~= "" then
+            for _, player in ipairs(Players:GetPlayers()) do
+                if string.find(player.Name:lower(), TargetName:lower()) or string.find(player.DisplayName:lower(), TargetName:lower()) then
+                    FlingTarget(player)
+                    break
+                end
+            end
+        end
+    end    
+})
+
+-- ปุ่มกด Fling คนที่อยู่ใกล้ที่สุด
+MainTab:AddButton({
+    Name = "Fling คนที่อยู่ใกล้ที่สุด (Closest Player)",
+    Callback = function()
+        local closest = GetClosestPlayer()
+        if closest then
+            FlingTarget(closest)
+        end
+    end    
+})
+
+OrionLib:Init()
