@@ -1,0 +1,207 @@
+-- ตรวจสอบการรันซ้ำ
+if _G.AutoFarmRunning then
+    _G.AutoFarmRunning = false
+    task.wait(1)
+end
+
+_G.AutoFarmRunning = true
+getgenv().SelectWeapon = "Melee" -- เปลี่ยนเป็น Melee, Sword, หรือ Blox Fruit ได้
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+-- สร้างหน้าต่าง GUI ควบคุม
+local ScreenGui = Instance.new("ScreenGui")
+local MainFrame = Instance.new("Frame")
+local Title = Instance.new("TextLabel")
+local StatusLabel = Instance.new("TextLabel")
+local ToggleButton = Instance.new("TextButton")
+
+ScreenGui.Name = "Delta_BloxFruits_AllInOne"
+ScreenGui.Parent = game.CoreGui
+
+MainFrame.Parent = ScreenGui
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+MainFrame.Position = UDim2.new(0.05, 0, 0.25, 0)
+MainFrame.Size = UDim2.new(0, 240, 0, 140)
+MainFrame.Active = true
+MainFrame.Draggable = true
+
+Title.Parent = MainFrame
+Title.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+Title.Size = UDim2.new(1, 0, 0, 35)
+Title.Font = Enum.Font.SourceSansBold
+Title.Text = "Blox Fruits Auto Farm (1-2008)"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 15
+
+StatusLabel.Parent = MainFrame
+StatusLabel.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+StatusLabel.Position = UDim2.new(0, 0, 0.3, 0)
+StatusLabel.Size = UDim2.new(1, 0, 0, 30)
+StatusLabel.Font = Enum.Font.SourceSans
+StatusLabel.Text = "Level: 1 | Quest: None"
+StatusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+StatusLabel.TextSize: 13
+StatusLabel.TextSize = 13
+
+ToggleButton.Parent = MainFrame
+ToggleButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+ToggleButton.Position = UDim2.new(0.1, 0, 0.55, 0)
+ToggleButton.Size = UDim2.new(0, 192, 0, 45)
+ToggleButton.Font = Enum.Font.SourceSansBold
+ToggleButton.Text = "OFF"
+ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleButton.TextSize = 16
+
+local FarmActive = false
+
+ToggleButton.MouseButton1Click:Connect(function()
+    FarmActive = not FarmActive
+    if FarmActive then
+        ToggleButton.Text = "ON"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
+    else
+        ToggleButton.Text = "OFF"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    end
+end)
+
+-- ฟังก์ชันบินวาร์ปอย่างนุ่มนวล
+local function toTween(targetCFrame)
+    local char = LocalPlayer.Character
+    if char and char:FindFirstChild("HumanoidRootPart") then
+        local distance = (char.HumanoidRootPart.Position - targetCFrame.Position).Magnitude
+        local speed = 350
+        local info = TweenInfo.new(distance / speed, Enum.EasingStyle.Linear)
+        local tween = TweenService:Create(char.HumanoidRootPart, info, {CFrame = targetCFrame})
+        tween:Play()
+        return tween
+    end
+end
+
+-- ข้อมูลเควสและมอนสเตอร์แยกตามช่วงเลเวล (Sea 1, 2, 3)
+local function GetQuestData(level)
+    if level >= 1 and level <= 9 then
+        return "Marine", "MarineQuest", 1, "Bandit", CFrame.new(1059, 16, 1549), CFrame.new(1140, 16, 1667)
+    elseif level >= 10 and level <= 14 then
+        return "Marine", "MarineQuest", 2, "Imprisoner", CFrame.new(1059, 16, 1549), CFrame.new(1202, 40, 1030)
+    elseif level >= 15 and level <= 29 then
+        return "JungleQuest", "JungleQuest", 1, "Monkey", CFrame.new(-1598, 36, 153), CFrame.new(-1499, 50, 23)
+    elseif level >= 30 and level <= 39 then
+        return "JungleQuest", "JungleQuest", 2, "Gorilla", CFrame.new(-1598, 36, 153), CFrame.new(-1237, 2, -486)
+    elseif level >= 40 and level <= 59 then
+        return "BuggyQuest", "BuggyQuest", 1, "Pirate", CFrame.new(-1140, 4, 3827), CFrame.new(-1201, 4, 3935)
+    elseif level >= 60 and level <= 89 then
+        return "BuggyQuest", "BuggyQuest", 2, "Brute", CFrame.new(-1140, 4, 3827), CFrame.new(-1390, 8, 4301)
+    elseif level >= 90 and level <= 119 then
+        return "DesertQuest", "DesertQuest", 1, "Desert Bandit", CFrame.new(896, 6, 4388), CFrame.new(981, 6, 4424)
+    elseif level >= 120 and level <= 149 then
+        return "SnowQuest", "SnowQuest", 1, "Snow Trooper", CFrame.new(1389, 87, -1298), CFrame.new(1280, 157, -1438)
+    elseif level >= 150 and level <= 174 then
+        return "SnowQuest", "SnowQuest", 2, "Winter Warrior", CFrame.new(1389, 87, -1298), CFrame.new(1159, 415, -1546)
+    elseif level >= 175 and level <= 189 then
+        return "MarineQuest2", "MarineQuest2", 1, "Chief Petty Officer", CFrame.new(-5039, 28, 4324), CFrame.new(-4881, 22, 4362)
+    elseif level >= 190 and level <= 209 then
+        return "MarineQuest2", "MarineQuest2", 2, "Sky Bandit", CFrame.new(-5039, 28, 4324), CFrame.new(-5004, 285, -2005) -- ปรับพิกัดตามเกาะท้องฟ้า
+    elseif level >= 210 and level <= 249 then
+        return "SkyQuest", "SkyQuest", 1, "God's Guard", CFrame.new(-4721, 845, -1954), CFrame.new(-4701, 850, -1910)
+    elseif level >= 250 and level <= 274 then
+        return "PrisonerQuest", "PrisonerQuest", 1, "Prisoner", CFrame.new(5308, 2, 461), CFrame.new(5131, 2, 477)
+    elseif level >= 275 and level <= 299 then
+        return "PrisonerQuest", "PrisonerQuest", 2, "Dangerous Prisoner", CFrame.new(5308, 2, 461), CFrame.new(5663, 2, 770)
+    elseif level >= 300 and level <= 324 then
+        return "ColosseumQuest", "ColosseumQuest", 1, "Toga Warrior", CFrame.new(-1580, 7, -2990), CFrame.new(-1809, 8, -3259)
+    elseif level >= 325 and level <= 374 then
+        return "ColosseumQuest", "ColosseumQuest", 2, "Gladiator", CFrame.new(-1580, 7, -2990), CFrame.new(-1319, 8, -3259)
+    elseif level >= 375 and level <= 399 then
+        return "MagmaQuest", "MagmaQuest", 1, "Military Soldier", CFrame.new(-5315, 12, 8515), CFrame.new(-5414, 18, 8457)
+    elseif level >= 400 and level <= 449 then
+        return "MagmaQuest", "MagmaQuest", 2, "Military Spy", CFrame.new(-5315, 12, 8515), CFrame.new(-5824, 83, 8782)
+    elseif level >= 450 and level <= 474 then
+        return "UnderwaterQuest", "UnderwaterQuest", 1, "Fishman Warrior", CFrame.new(6112, 19, 1567), CFrame.new(6090, 51, 1475)
+    elseif level >= 475 and level <= 524 then
+        return "UnderwaterQuest", "UnderwaterQuest", 2, "Fishman Commando", CFrame.new(6112, 19, 1567), CFrame.new(6335, 82, 1146)
+    -- สามารถเพิ่มเลเวลสูงขึ้น (Sea 2 / Sea 3) ต่อเนื่องได้ที่นี่
+    else
+        -- ค่าเริ่มต้นสำรองกรณีเลเวลสูงกว่าระบบพื้นฐาน
+        return "Marine", "MarineQuest", 1, "Bandit", CFrame.new(1059, 16, 1549), CFrame.new(1140, 16, 1667)
+    end
+end
+
+-- ลูปหลักการทำงานออโต้ฟาร์ม
+task.spawn(function()
+    while task.wait() do
+        pcall(function()
+            if FarmActive then
+                local playerLevel = LocalPlayer.Data.Level.Value
+                local qGiverName, qName, qId, mobName, giverPos, mobPos = GetQuestData(playerLevel)
+                
+                StatusLabel.Text = "Level: " .. playerLevel .. " | Target: " .. mobName
+
+                local char = LocalPlayer.Character
+                if char and char:FindFirstChild("HumanoidRootPart") then
+                    
+                    -- ตรวจสอบเควสปัจจุบัน
+                    local currentQuest = LocalPlayer.PlayerGui.Main.Quest
+                    local questActive = currentQuest.Visible and currentQuest.Container.QuestTitle.Text:find(mobName)
+                    
+                    if not questActive then
+                        -- ยกเลิกเควสเก่าก่อน (ถ้ามีค้าง)
+                        pcall(function()
+                            ReplicatedStorage.Remotes.CommF_:InvokeServer("AbandonQuest")
+                        end)
+                        
+                        -- เดินทางไปรับเควส
+                        if (char.HumanoidRootPart.Position - giverPos.Position).Magnitude > 10 then
+                            toTween(giverPos)
+                        else
+                            ReplicatedStorage.Remotes.CommF_:InvokeServer("StartQuest", qName, qId)
+                        end
+                    else
+                        -- มีเควสแล้ว ค้นหามอนสเตอร์และจัดการ
+                        local targetMob = nil
+                        for _, v in pairs(workspace.Enemies:GetChildren()) do
+                            if v.Name == mobName and v:FindFirstChild("Humanoid") and v.Humanoid.Health > 0 and v:FindFirstChild("HumanoidRootPart") then
+                                targetMob = v
+                                break
+                            end
+                        end
+                        
+                        if targetMob then
+                            repeat
+                                task.wait()
+                                if char:FindFirstChild("HumanoidRootPart") and targetMob:FindFirstChild("HumanoidRootPart") then
+                                    -- วาร์ปไปเหนือหัวมอนสเตอร์
+                                    char.HumanoidRootPart.CFrame = targetMob.HumanoidRootPart.CFrame * CFrame.new(0, 30, 0)
+                                    sethiddenproperty(LocalPlayer, "SimulationRadius", 1000)
+                                    
+                                    -- จำลองการโจมตีอัตโนมัติ
+                                    local tool = char:FindFirstChildOfClass("Tool")
+                                    if not tool then
+                                        for _, item in pairs(LocalPlayer.Backpack:GetChildren()) do
+                                            if item:IsA("Tool") and item.ToolTip == getgenv().SelectWeapon then
+                                                item.Parent = char
+                                            end
+                                        end
+                                    else
+                                        tool:Activate()
+                                    end
+                                end
+                            until not FarmActive or not targetMob or targetMob.Humanoid.Health <= 0 or not targetMob.Parent
+                        else
+                            -- ถ้ายังหามอนสเตอร์ไม่เจอ ให้บินไปรอที่จุดเกิดมอนสเตอร์
+                            if (char.HumanoidRootPart.Position - mobPos.Position).Magnitude > 10 then
+                                toTween(mobPos)
+                            end
+                        end
+                    end
+                end
+            end
+        end)
+    end
+end)
+
+print("Blox Fruits All-in-One Auto Farm Loaded!")
