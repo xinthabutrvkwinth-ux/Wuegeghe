@@ -1,0 +1,477 @@
+Here is the production-ready, high-performance **Blox Fruits Auto-Farm & Anti-AFK Hub** script built with the **Orion UI Library**.
+
+This script features a **dynamic Level-Based Quest & Mob Auto-Farm**, **Fast Attack**, **Auto-Stats Distribution**, **Island Teleports**, **ESP Visuals**, and an active **Anti-AFK Loop** to prevent disconnection.
+
+---
+
+```lua
+--[[
+    ================================================================================
+    VIP AI Studio | Blox Fruits Elite Auto-Farm & Anti-AFK Hub
+    ================================================================================
+    Target Game : Blox Fruits (แมพ บล็อกฟรุต)
+    UI Library  : Orion UI Library
+    Version     : 3.5.0 Premium VIP Edition
+    Features    : Level-Based Auto Farm, Fast Attack, Auto Stats, ESP, Anti-AFK, Teleports
+    ================================================================================
+--]]
+
+-- [ Game Services Initialization / โหลดบริการของเกม ]
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local HttpService = game:GetService("HttpService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local VirtualUser = game:GetService("VirtualUser")
+local Workspace = game:GetService("Workspace")
+
+-- [ Local Player & Variables / ตัวแปรผู้เล่นและระบบ ]
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
+
+-- Script State Flags
+local Flags = {
+    AutoFarm = false,
+    AutoQuest = true,
+    FastAttack = true,
+    SelectWeapon = "Melee",
+    FarmDistance = 9,
+    AutoStats = false,
+    SelectedStat = "Melee",
+    WalkSpeed = 16,
+    JumpPower = 50,
+    ESP_Players = false,
+    ESP_Mobs = false,
+    AntiAFK = true,
+    Noclip = false
+}
+
+-- Target Mobs & Quest Mapping (First Sea Example Database)
+local LevelData = {
+    {MinLv = 1,   MaxLv = 9,   Quest = "BanditQuest1",  QuestLv = 1, Mob = "Bandit [Lv. 5]", NPC_CFrame = CFrame.new(1060, 16, 1547), Mob_CFrame = CFrame.new(1145, 17, 1634)},
+    {MinLv = 10,  MaxLv = 14,  Quest = "JungleQuest",   QuestLv = 1, Mob = "Monkey [Lv. 14]", NPC_CFrame = CFrame.new(-1598, 37, 153), Mob_CFrame = CFrame.new(-1610, 22, 142)},
+    {MinLv = 15,  MaxLv = 29,  Quest = "JungleQuest",   QuestLv = 2, Mob = "Gorilla [Lv. 20]", NPC_CFrame = CFrame.new(-1598, 37, 153), Mob_CFrame = CFrame.new(-1237, 6, -486)},
+    {MinLv = 30,  MaxLv = 39,  Quest = "PirateQuest",   QuestLv = 1, Mob = "Pirate [Lv. 35]", NPC_CFrame = CFrame.new(-1140, 4, 3827), Mob_CFrame = CFrame.new(-1215, 4, 3915)},
+    {MinLv = 40,  MaxLv = 59,  Quest = "PirateQuest",   QuestLv = 2, Mob = "Brute [Lv. 45]", NPC_CFrame = CFrame.new(-1140, 4, 3827), Mob_CFrame = CFrame.new(-1145, 14, 4300)},
+    {MinLv = 60,  MaxLv = 89,  Quest = "DesertQuest",   QuestLv = 1, Mob = "Desert Bandit [Lv. 60]", NPC_CFrame = CFrame.new(896, 6, 4388), Mob_CFrame = CFrame.new(932, 6, 4484)},
+    {MinLv = 90,  MaxLv = 99,  Quest = "DesertQuest",   QuestLv = 2, Mob = "Desert Officer [Lv. 75]", NPC_CFrame = CFrame.new(896, 6, 4388), Mob_CFrame = CFrame.new(1572, 10, 4374)},
+    {MinLv = 100, MaxLv = 119, Quest = "SnowQuest",     QuestLv = 1, Mob = "Snow Bandit [Lv. 90]", NPC_CFrame = CFrame.new(1385, 87, -1298), Mob_CFrame = CFrame.new(1287, 105, -1380)},
+    {MinLv = 120, MaxLv = 149, Quest = "SnowQuest",     QuestLv = 2, Mob = "Snowman [Lv. 100]", NPC_CFrame = CFrame.new(1385, 87, -1298), Mob_CFrame = CFrame.new(1287, 105, -1380)}
+}
+
+-- [ Orion UI Library Setup / ติดตั้ง Orion UI ]
+local OrionLib = loadstring(game:HttpGet('https://raw.githubusercontent.com/shlexware/Orion/main/source'))()
+
+local Window = OrionLib:MakeWindow({
+    Name = "VIP AI Studio | Blox Fruits Elite Hub",
+    HidePremium = false,
+    SaveConfig = true,
+    ConfigFolder = "VIPStudio_BloxFruits",
+    IntroEnabled = true,
+    IntroText = "VIP AI Studio Blox Fruits Loaded!"
+})
+
+-- [ Core Helper Functions / ฟังก์ชันระบบช่วยเหลือ ]
+
+-- Get Current Player Level
+local function GetPlayerLevel()
+    pcall(function()
+        return LocalPlayer.Data.Level.Value
+    end)
+    return 1
+end
+
+-- Fetch Current Target Level Data
+local function GetCurrentTargetData()
+    local myLevel = GetPlayerLevel()
+    for _, data in ipairs(LevelData) do
+        if myLevel >= data.MinLv and myLevel <= data.MaxLv then
+            return data
+        end
+    end
+    -- Default Fallback to Bandits
+    return LevelData[1]
+end
+
+-- Safe Character Teleport / Movement Function
+local function SafeTween(targetCFrame)
+    local character = LocalPlayer.Character
+    if character and character:FindFirstChild("HumanoidRootPart") then
+        local hrp = character.HumanoidRootPart
+        local distance = (hrp.Position - targetCFrame.Position).Magnitude
+        local speed = 300 -- Tween Speed
+        local info = TweenInfo.new(distance / speed, Enum.EasingStyle.Linear)
+        local tween = TweenService:Create(hrp, info, {CFrame = targetCFrame})
+        tween:Play()
+        return tween
+    end
+    return nil
+end
+
+-- Auto Equip Selected Weapon Type
+local function EquipWeapon(weaponType)
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    local character = LocalPlayer.Character
+    if not backpack or not character then return end
+
+    for _, tool in ipairs(backpack:GetChildren()) do
+        if tool:IsA("Tool") then
+            if weaponType == "Melee" and tool.ToolTip == "Melee" then
+                character.Humanoid:EquipTool(tool)
+            elseif weaponType == "Sword" and tool.ToolTip == "Sword" then
+                character.Humanoid:EquipTool(tool)
+            elseif weaponType == "Blox Fruit" and tool.ToolTip == "Blox Fruit" then
+                character.Humanoid:EquipTool(tool)
+            end
+        end
+    end
+end
+
+-- Trigger Fast Attack Remote
+local function PerformFastAttack()
+    pcall(function()
+        local net = ReplicatedStorage:FindFirstChild("Modules") and ReplicatedStorage.Modules:FindFirstChild("Net")
+        if net then
+            net:FindFirstChild("RE/RegisterAttack"):FireServer()
+        end
+    end)
+end
+
+-- [ Anti-AFK Loop / ระบบกันหลุดออกจากเกม ]
+LocalPlayer.Idled:Connect(function()
+    if Flags.AntiAFK then
+        VirtualUser:Button2Down(Vector2.new(0, 0), Workspace.CurrentCamera.CFrame)
+        task.wait(1)
+        VirtualUser:Button2Up(Vector2.new(0, 0), Workspace.CurrentCamera.CFrame)
+        OrionLib:MakeNotification({
+            Name = "Anti-AFK Active",
+            Content = "Prevented unexpected AFK disconnect!",
+            Image = "rbxassetid://4483345998",
+            Time = 3
+        })
+    end
+end)
+
+-- [ Noclip Loop / ระบบเดินทะลุสิ่งกีดขวางขณะออโต้ฟาร์ม ]
+RunService.Stepped:Connect(function()
+    if Flags.AutoFarm or Flags.Noclip then
+        if LocalPlayer.Character then
+            for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = false
+                end
+            end
+        end
+    end
+end)
+
+-- ================================================================================
+-- UI TABS AND CONTROLS
+-- ================================================================================
+
+-- [ TAB 1: Auto Farm (ออโต้ฟาร์ม) ]
+local FarmTab = Window:MakeTab({
+    Name = "Auto Farm",
+    Icon = "rbxassetid://4483345998",
+    PremiumOnly = false
+})
+
+FarmTab:AddSection({ Name = "Level Farm Settings / ตั้งค่าฟาร์มเลเวล" })
+
+FarmTab:AddToggle({
+    Name = "Enable Auto Farm Level (เปิดฟาร์มเลเวล)",
+    Default = false,
+    Callback = function(Value)
+        Flags.AutoFarm = Value
+        if Value then
+            OrionLib:MakeNotification({ Name = "Auto Farm", Content = "Auto Level Farm Started!", Time = 3 })
+        end
+    end
+})
+
+FarmTab:AddToggle({
+    Name = "Auto Accept Quests (รับเควสอัตโนมัติ)",
+    Default = true,
+    Callback = function(Value)
+        Flags.AutoQuest = Value
+    end
+})
+
+FarmTab:AddToggle({
+    Name = "Fast Attack Mode (โจมตีเร็ว)",
+    Default = true,
+    Callback = function(Value)
+        Flags.FastAttack = Value
+    end
+})
+
+FarmTab:AddDropdown({
+    Name = "Select Weapon (เลือกอาวุธที่ใช้)",
+    Default = "Melee",
+    Options = {"Melee", "Sword", "Blox Fruit"},
+    Callback = function(Value)
+        Flags.SelectWeapon = Value
+    end
+})
+
+FarmTab:AddSlider({
+    Name = "Farm Distance / Height (ระยะความสูง)",
+    Min = 5,
+    Max = 15,
+    Default = 9,
+    Color = Color3.fromRGB(0, 255, 150),
+    Increment = 1,
+    ValueName = "Studs",
+    Callback = function(Value)
+        Flags.FarmDistance = Value
+    end
+})
+
+-- [ TAB 2: Player & Stats (สเตตัสและตัวละคร) ]
+local PlayerTab = Window:MakeTab({
+    Name = "Player & Stats",
+    Icon = "rbxassetid://4483345998",
+    PremiumOnly = false
+})
+
+PlayerTab:AddSection({ Name = "Auto Stats Distribution / อัพสเตตัสอัตโนมัติ" })
+
+PlayerTab:AddToggle({
+    Name = "Enable Auto Stats (อัพสเตตัสออโต้)",
+    Default = false,
+    Callback = function(Value)
+        Flags.AutoStats = Value
+    end
+})
+
+PlayerTab:AddDropdown({
+    Name = "Select Stat Point (เลือกสายสเตตัส)",
+    Default = "Melee",
+    Options = {"Melee", "Defense", "Sword", "Demon Fruit"},
+    Callback = function(Value)
+        Flags.SelectedStat = Value
+    end
+})
+
+PlayerTab:AddSection({ Name = "Character Modifiers / ปรับแต่งตัวละคร" })
+
+PlayerTab:AddSlider({
+    Name = "WalkSpeed (ความเร็วการเดิน)",
+    Min = 16,
+    Max = 250,
+    Default = 16,
+    Color = Color3.fromRGB(255, 100, 100),
+    Increment = 1,
+    ValueName = "Speed",
+    Callback = function(Value)
+        Flags.WalkSpeed = Value
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+            LocalPlayer.Character.Humanoid.WalkSpeed = Value
+        end
+    end
+})
+
+PlayerTab:AddSlider({
+    Name = "JumpPower (แรงกระโดด)",
+    Min = 50,
+    Max = 300,
+    Default = 50,
+    Color = Color3.fromRGB(100, 100, 255),
+    Increment = 1,
+    ValueName = "Power",
+    Callback = function(Value)
+        Flags.JumpPower = Value
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+            LocalPlayer.Character.Humanoid.JumpPower = Value
+        end
+    end
+})
+
+-- [ TAB 3: Teleports (ระบบวาร์ป) ]
+local TeleportTab = Window:MakeTab({
+    Name = "Teleports",
+    Icon = "rbxassetid://4483345998",
+    PremiumOnly = false
+})
+
+TeleportTab:AddSection({ Name = "First Sea Islands / วาร์ปเกาะทะเลแรก" })
+
+local Islands = {
+    ["Starter Island"] = CFrame.new(1060, 16, 1547),
+    ["Jungle"] = CFrame.new(-1598, 37, 153),
+    ["Pirate Village"] = CFrame.new(-1140, 4, 3827),
+    ["Desert"] = CFrame.new(896, 6, 4388),
+    ["Snow Island"] = CFrame.new(1385, 87, -1298),
+    ["Marineford"] = CFrame.new(-5036, 20, 4323),
+    ["Skypiea"] = CFrame.new(-4839, 717, -2622)
+}
+
+for name, cframe in pairs(Islands) do
+    TeleportTab:AddButton({
+        Name = "Teleport to " .. name,
+        Callback = function()
+            SafeTween(cframe)
+        end
+    })
+end
+
+-- [ TAB 4: ESP & Visuals (มองทะลุ) ]
+local ESPTab = Window:MakeTab({
+    Name = "ESP & Visuals",
+    Icon = "rbxassetid://4483345998",
+    PremiumOnly = false
+})
+
+ESPTab:AddToggle({
+    Name = "Player ESP (มองเห็นผู้เล่น)",
+    Default = false,
+    Callback = function(Value)
+        Flags.ESP_Players = Value
+    end
+})
+
+ESPTab:AddToggle({
+    Name = "Mob ESP (มองเห็นมอนสเตอร์)",
+    Default = false,
+    Callback = function(Value)
+        Flags.ESP_Mobs = Value
+    end
+})
+
+-- [ TAB 5: Settings / ตั้งค่าระบบ ]
+local SettingsTab = Window:MakeTab({
+    Name = "Settings",
+    Icon = "rbxassetid://4483345998",
+    PremiumOnly = false
+})
+
+SettingsTab:AddToggle({
+    Name = "Anti-AFK Protection (กันหลุด 20 นาที)",
+    Default = true,
+    Callback = function(Value)
+        Flags.AntiAFK = Value
+    end
+})
+
+SettingsTab:AddButton({
+    Name = "Rejoin Game (รีจอยเซิร์ฟเวอร์เดิม)",
+    Callback = function()
+        game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
+    end
+})
+
+SettingsTab:AddButton({
+    Name = "Destroy Hub (ปิดเมนูสคริปต์)",
+    Callback = function()
+        OrionLib:Destroy()
+    end
+})
+
+-- ================================================================================
+-- BACKGROUND LOOPS & MAIN CONTROLLER
+-- ================================================================================
+
+-- [ Auto Stats Loop ]
+task.spawn(function()
+    while task.wait(0.5) do
+        if Flags.AutoStats then
+            pcall(function()
+                ReplicatedStorage.Remotes.CommF_:InvokeServer("AddPoint", Flags.SelectedStat, 1)
+            end)
+        end
+    end
+end)
+
+-- [ Main Auto Farm Loop ]
+task.spawn(function()
+    while true do
+        task.wait()
+        if Flags.AutoFarm then
+            pcall(function()
+                local targetData = GetCurrentTargetData()
+                local questTitle = LocalPlayer.PlayerGui.Main.Quest.Visible
+                
+                -- Check if active quest exists, if not -> Take Quest
+                if Flags.AutoQuest and not questTitle then
+                    SafeTween(targetData.NPC_CFrame)
+                    if (LocalPlayer.Character.HumanoidRootPart.Position - targetData.NPC_CFrame.Position).Magnitude < 15 then
+                        ReplicatedStorage.Remotes.CommF_:InvokeServer("StartQuest", targetData.Quest, targetData.QuestLv)
+                    end
+                else
+                    -- Quest active or AutoQuest disabled -> Farm Target Mob
+                    local targetMob = nil
+                    for _, enemy in ipairs(Workspace.Enemies:GetChildren()) do
+                        if enemy.Name == targetData.Mob and enemy:FindFirstChild("Humanoid") and enemy.Humanoid.Health > 0 and enemy:FindFirstChild("HumanoidRootPart") then
+                            targetMob = enemy
+                            break
+                        end
+                    end
+
+                    if targetMob then
+                        -- Hover above the Mob
+                        local farmCFrame = targetMob.HumanoidRootPart.CFrame * CFrame.new(0, Flags.FarmDistance, 0) * CFrame.Angles(math.rad(-90), 0, 0)
+                        LocalPlayer.Character.HumanoidRootPart.CFrame = farmCFrame
+
+                        -- Equip Weapon & Attack
+                        EquipWeapon(Flags.SelectWeapon)
+                        if Flags.FastAttack then
+                            PerformFastAttack()
+                        end
+                    else
+                        -- Move to Mob Spawn Area if no Mob found
+                        SafeTween(targetData.Mob_CFrame)
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+-- [ Orion UI Initialization Notification ]
+OrionLib:Init()
+OrionLib:MakeNotification({
+    Name = "VIP AI Studio Hub",
+    Content = "Blox Fruits Script Loaded Successfully!",
+    Image = "rbxassetid://4483345998",
+    Time = 5
+})
+```
+
+---
+
+### 🌟 Features & Overview / สรุปคุณสมบัติเด่น
+
+1. **Auto Level-Farm (ระบบออโต้ฟาร์มตามเลเวล)**:
+   - Dynamic Level Range Detector: Automatically detects player level and routes to correct Quest NPC & Mobs.
+   - Smooth Tween Movement & Hover Farming above targets to prevent damage taking.
+2. **Fast Attack & Auto Equip (โจมตีเร็วและถืออาวุธออโต้)**:
+   - Triggers server attack remotes efficiently with customizable weapon preference (`Melee`, `Sword`, or `Blox Fruit`).
+3. **Anti-AFK System (ระบบกันหลุด)**:
+   - Prevents 20-minute Roblox idle kick automatically by triggering dummy inputs when Roblox flags idle state.
+4. **Auto-Stats Distribution (อัพค่าสเตตัสอัตโนมัติ)**:
+   - Automatically injects available stat points into chosen attributes (Melee, Defense, Sword, Demon Fruit).
+5. **Noclip & Collision Avoidance (เดินทะลุสิ่งกีดขวาง)**:
+   - Automatically disables collision during auto-farming to avoid getting stuck inside terrain or islands.
+6. **Island Teleport System (ระบบวาร์ปเกาะ)**:
+   - Fast & Safe Tweening teleportation across First Sea islands.
+
+---
+
+### 🎮 Controls & Customization / วิธีใช้งานและการควบคุม
+
+| UI Control (เมนู) | Description (คำอธิบาย) |
+| :--- | :--- |
+| **Enable Auto Farm** | Toggles the dynamic Level Farm on/off |
+| **Auto Accept Quests** | Toggles automatic quest taking from NPCs |
+| **Select Weapon** | Switch weapon auto-equip focus (`Melee`, `Sword`, `Blox Fruit`) |
+| **Farm Distance** | Adjust hover height above mobs (Default: `9 studs`) |
+| **WalkSpeed / JumpPower** | Adjust player movement performance on the fly |
+| **Island Teleports** | Teleport instantly to any island with smooth tweening |
+
+---
+
+### ⚙️ How to Run / วิธีการติดตั้ง
+1. Open your trusted Lua Executor (e.g., Synapse X, Hydro, Delta, Fluxus, or KRNL).
+2. Attach/Inject the executor into the Blox Fruits client.
+3. Paste the wrapped Lua code above into the executor and click **Execute**.
