@@ -1,0 +1,102 @@
+-- Roblox Fisch Accessible Helper with Lightweight UI
+local CoreGui = game:GetService("CoreGui")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
+local Workspace = game:GetService("Workspace")
+
+local LocalPlayer = Players.LocalPlayer
+local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+
+local AutoFishEnabled = false
+local OptimizeEnabled = false
+
+-- 1. BUILD LIGHTWEIGHT MOBILE GUI
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "FischMobileHelper"
+ScreenGui.ResetOnSpawn = false
+
+pcall(function() ScreenGui.Parent = CoreGui end)
+if not ScreenGui.Parent then ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 210, 0, 150)
+MainFrame.Position = UDim2.new(0.05, 0, 0.2, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = ScreenGui
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+Title.Text = "Fisch Helper (Mobile)"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 14
+Title.Font = Enum.Font.SourceSansBold
+Title.Parent = MainFrame
+
+local AutoFishBtn = Instance.new("TextButton")
+AutoFishBtn.Size = UDim2.new(0.85, 0, 0, 35)
+AutoFishBtn.Position = UDim2.new(0.075, 0, 0.3, 0)
+AutoFishBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+AutoFishBtn.Text = "Auto Fishing: OFF"
+AutoFishBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+AutoFishBtn.Font = Enum.Font.SourceSansBold
+AutoFishBtn.TextSize = 13
+AutoFishBtn.Parent = MainFrame
+
+local OptBtn = Instance.new("TextButton")
+OptBtn.Size = UDim2.new(0.85, 0, 0, 35)
+OptBtn.Position = UDim2.new(0.075, 0, 0.62, 0)
+OptBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+OptBtn.Text = "Optimize FPS: OFF"
+OptBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+OptBtn.Font = Enum.Font.SourceSansBold
+OptBtn.TextSize = 13
+OptBtn.Parent = MainFrame
+
+-- 2. UI CONTROLS & OPTIMIZE CORE PROCESS
+AutoFishBtn.MouseButton1Click:Connect(function()
+    AutoFishEnabled = not AutoFishEnabled
+    AutoFishBtn.Text = AutoFishEnabled and "Auto Fishing: ON" or "Auto Fishing: OFF"
+    AutoFishBtn.BackgroundColor3 = AutoFishEnabled and Color3.fromRGB(50, 180, 50) or Color3.fromRGB(180, 50, 50)
+end)
+
+OptBtn.MouseButton1Click:Connect(function()
+    OptimizeEnabled = not OptimizeEnabled
+    OptBtn.Text = OptimizeEnabled and "Optimize FPS: ON" or "Optimize FPS: OFF"
+    OptBtn.BackgroundColor3 = OptimizeEnabled and Color3.fromRGB(50, 180, 50) or Color3.fromRGB(180, 50, 50)
+
+    pcall(function()
+        RunService:Set3DRenderStepped(not OptimizeEnabled)
+        Lighting.GlobalShadows = not OptimizeEnabled
+        if OptimizeEnabled then
+            Lighting.FogEnd = 9e9
+            for _, v in ipairs(Workspace:GetDescendants()) do
+                if v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("PostEffect") then
+                    v.Enabled = false
+                end
+            end
+        end
+    end)
+end)
+
+-- 3. ACCESSIBILITY & AUTO FISHING SYSTEM
+task.spawn(function()
+    while task.wait(0.5) do
+        if AutoFishEnabled then
+            pcall(function()
+                Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+                local Tool = Character:FindFirstChildOfClass("Tool")
+                if Tool and Tool:FindFirstChild("events") then
+                    Tool:Activate()
+                    local ReelEvent = Tool.events:FindFirstChild("reelfinished") or Tool.events:FindFirstChild("cast")
+                    if ReelEvent and ReelEvent:IsA("RemoteEvent") then
+                        ReelEvent:FireServer(100, true)
+                    end
+                end
+            end)
+        end
+    end
+end)
